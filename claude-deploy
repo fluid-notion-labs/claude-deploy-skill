@@ -41,6 +41,7 @@ Commands:
   setup    [--org <n>]              Configure app ID and ingest PEM
   token    <owner/repo> [--org <n>] Get ephemeral token (copies to clipboard)
   handover <owner/repo> [--org <n>] Generate full session blob → wl-copy (paste into Claude)
+  open     [--org <n>]             Open GitHub App settings to add repos
   update                            Overwrite this script from main branch
   config   auto-update [on|off]    Toggle auto-update on each run
   profiles                          List configured profiles
@@ -327,7 +328,26 @@ HANDOVER
     fi
 }
 
-cmd_update() {
+cmd_open() {
+    parse_profile "$@"
+    load_config "$PROFILE"
+
+    # Determine if org or personal account
+    local owner="${PROFILE}"
+    local url
+
+    # Try org URL first, fall back to personal
+    if [[ "$owner" == "default" ]]; then
+        url="https://github.com/settings/installations"
+    else
+        url="https://github.com/organizations/$owner/settings/installations"
+    fi
+
+    echo "Opening: $url" >&2
+    xdg-open "$url" 2>/dev/null || echo "$url"
+}
+
+
     # Resolve the actual installed script location
     DEST=$(command -v claude-deploy 2>/dev/null || realpath "$0")
     URL="https://raw.githubusercontent.com/fluid-notion-labs/claude-deploy-skill/main/claude-deploy"
@@ -341,6 +361,7 @@ case "$COMMAND" in
     setup)    cmd_setup "$@" ;;
     token)    cmd_token "$@" ;;
     handover) cmd_handover "$@" ;;
+    open)     cmd_open "$@" ;;
     update)   cmd_update ;;
     config)   parse_profile "$@"; cmd_config ;;
     profiles) cmd_profiles ;;
