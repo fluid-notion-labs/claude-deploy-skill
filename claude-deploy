@@ -15,6 +15,7 @@ Commands:
   setup    [--org <n>]              Configure app ID and ingest PEM
   token    <owner/repo> [--org <n>] Get ephemeral token (copies to clipboard)
   handover <owner/repo> [--org <n>] Generate full session blob → wl-copy (paste into Claude)
+  update                            Overwrite this script from main branch
   profiles                          List configured profiles
   status   [--org <n>]             Show current config
 
@@ -258,10 +259,20 @@ HANDOVER
     fi
 }
 
+cmd_update() {
+    DEST=$(realpath "$0")
+    URL="https://raw.githubusercontent.com/fluid-notion-labs/claude-deploy-skill/main/claude-deploy"
+    echo "Updating $DEST from main..." >&2
+    curl -fsSL "$URL" -o "$DEST"
+    chmod +x "$DEST"
+    echo "✓ Updated" >&2
+}
+
 case "$COMMAND" in
     setup)    cmd_setup "$@" ;;
     token)    cmd_token "$@" ;;
     handover) cmd_handover "$@" ;;
+    update)   cmd_update ;;
     profiles) cmd_profiles ;;
     status)   cmd_status "$@" ;;
     *)        usage ;;
