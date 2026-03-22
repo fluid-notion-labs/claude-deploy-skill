@@ -1,11 +1,25 @@
 #!/usr/bin/env bash
 # claude-deploy — manage Claude GitHub deploy credentials
-# Commands: setup, token, profiles, status, preamble
+# Commands: setup, token, handover, update, profiles, status
 set -e
 
 CONFIG_DIR="${CLAUDE_DEPLOY_DIR:-$HOME/.config/claude-deploy}"
 COMMAND=$1
 shift || true
+
+# Auto-update: if enabled in global config, update before running (except during update itself)
+GLOBAL_CFG="$CONFIG_DIR/config"
+if [[ "$COMMAND" != "update" && -f "$GLOBAL_CFG" ]]; then
+    source "$GLOBAL_CFG"
+    if [[ "${AUTO_UPDATE:-0}" == "1" ]]; then
+        DEST=$(realpath "$0")
+        URL="https://raw.githubusercontent.com/fluid-notion-labs/claude-deploy-skill/main/claude-deploy"
+        echo "Auto-updating..." >&2
+        curl -fsSL "$URL" -o "$DEST"
+        chmod +x "$DEST"
+        exec "$DEST" "$COMMAND" "$@"
+    fi
+fi
 
 usage() {
     cat >&2 << 'USAGE'
@@ -16,6 +30,7 @@ Commands:
   token    <owner/repo> [--org <n>] Get ephemeral token (copies to clipboard)
   handover <owner/repo> [--org <n>] Generate full session blob → wl-copy (paste into Claude)
   update                            Overwrite this script from main branch
+  config   auto-update [on|off]    Toggle auto-update on each run
   profiles                          List configured profiles
   status   [--org <n>]             Show current config
 
@@ -85,12 +100,53 @@ cmd_setup() {
     chmod 600 "$PEM_DEST"
     echo "PEM copied to $PEM_DEST"
 
+    # Auto-update prompt only for default profile (global setting)
+    local AUTO_UPDATE=0
+    if [[ "$PROFILE" == "default" ]]; then
+        read -p "Enable auto-update on each run? [y/N] " AU
+        [[ "$AU" =~ ^[Yy] ]] && AUTO_UPDATE=1
+    fi
+
     cat > "$file" << CONF
 APP_ID=$APP_ID
 PEM_PATH=$PEM_DEST
+AUTO_UPDATE=$AUTO_UPDATE
 CONF
     chmod 600 "$file"
     echo "✓ Profile '$PROFILE' saved to $file"
+}
+
+cmd_config() {
+    # claude-deploy config auto-update [on|off]
+    local key="${POSITIONAL[0]:-}"
+    local val="${POSITIONAL[1]:-}"
+    local file=$(config_file "default")
+    mkdir -p "$CONFIG_DIR"
+    [[ ! -f "$file" ]] && touch "$file" && chmod 600 "$file"
+
+    case "$key" in
+        auto-update)
+            case "$val" in
+                on|1)  setting=1 ;;
+                off|0) setting=0 ;;
+                *)
+                    # Toggle current
+                    source "$file" 2>/dev/null || true
+                    setting=$(( 1 - ${AUTO_UPDATE:-0} ))
+                    ;;
+            esac
+            if grep -q "^AUTO_UPDATE=" "$file" 2>/dev/null; then
+                sed -i "s/^AUTO_UPDATE=.*/AUTO_UPDATE=$setting/" "$file"
+            else
+                echo "AUTO_UPDATE=$setting" >> "$file"
+            fi
+            [[ "$setting" == "1" ]] && echo "✓ Auto-update enabled" || echo "✓ Auto-update disabled"
+            ;;
+        *)
+            echo "Usage: claude-deploy config auto-update [on|off]" >&2
+            exit 1
+            ;;
+    esac
 }
 
 cmd_token() {
@@ -273,6 +329,7 @@ case "$COMMAND" in
     token)    cmd_token "$@" ;;
     handover) cmd_handover "$@" ;;
     update)   cmd_update ;;
+    config)   parse_profile "$@"; cmd_config ;;
     profiles) cmd_profiles ;;
     status)   cmd_status "$@" ;;
     *)        usage ;;
