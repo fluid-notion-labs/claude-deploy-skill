@@ -329,17 +329,18 @@ PYEOF
         exit 1
     fi
 
-    # Get all repos for this installation
-    REPOS_JSON=$(gh api "/app/installations/$INSTALL_ID/repositories" \
-        --header "Authorization: Bearer $JWT" \
-        --header "Accept: application/vnd.github+json" \
-        | jq -r '.repositories[].full_name')
-
+    # Get token first
     TOKEN=$(gh api "/app/installations/$INSTALL_ID/access_tokens" \
         --method POST \
         --header "Authorization: Bearer $JWT" \
         --header "Accept: application/vnd.github+json" \
         --jq '.token')
+
+    # List repos using the installation token
+    REPOS_JSON=$(gh api "/installation/repositories" \
+        --header "Authorization: token $TOKEN" \
+        --header "Accept: application/vnd.github+json" \
+        | jq -r '.repositories[].full_name')
 
     EXPIRY=$(date -d '+1 hour' '+%H:%M %Z')
 
