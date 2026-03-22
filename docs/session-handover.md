@@ -1,0 +1,82 @@
+# Claude Session Handover
+
+Paste this doc at the start of a new Claude session to get up to speed instantly.
+
+---
+
+## Context
+
+We have a workflow for Claude to push files to GitHub repos using ephemeral GitHub App tokens. Claude runs in a container with no SSH binary and no access to `api.github.com` — so auth is done locally and the token is pasted in.
+
+## Repo
+
+`fluid-notion-labs/claude-deploy-skill`  
+This repo contains the skill itself, the `claude-deploy` bash script, and setup docs.
+
+## Auth Flow (every session)
+
+1. Run locally:
+```sh
+claude-deploy token <owner/repo> --profile <profile>
+```
+
+2. Paste the token into Claude.
+
+3. Claude clones/pushes via HTTPS like this:
+```sh
+git clone https://x-access-token:<TOKEN>@github.com/<owner>/<repo>.git
+# or
+git remote set-url origin https://x-access-token:<TOKEN>@github.com/<owner>/<repo>.git
+git push origin main
+```
+
+Token expires in 1 hour. Run `claude-deploy token` again if it expires.
+
+## Local Setup (one time)
+
+```sh
+# Install
+curl -fsSL https://raw.githubusercontent.com/fluid-notion-labs/claude-deploy-skill/main/claude-deploy \
+  -o ~/.local/bin/claude-deploy && chmod +x ~/.local/bin/claude-deploy
+
+# Configure profile
+claude-deploy setup --profile fluid-notion-labs
+# prompts for App ID and PEM path
+```
+
+## Config
+
+- Config dir: `~/.config/claude-deploy/`
+- Default config: `~/.config/claude-deploy/config`
+- Named profile: `~/.config/claude-deploy/config-<profile>`
+- Each config contains `APP_ID` and `PEM_PATH`
+- PEM is copied into config dir on setup
+
+## Key Details
+
+- **App ID:** `3154535` (claude-deploy GitHub App, owned by nhemsley)
+- **PEM:** `~/.config/claude-deploy/private-key-fluid-notion-labs.pem`
+- **GitHub App installed on:** `nhemsley` and `fluid-notion-labs`
+- **Container constraints:** no SSH, no `api.github.com`, no persistent state between sessions
+- **Token is generated locally** via `claude-deploy token` then pasted to Claude
+- **wl-copy** used to auto-copy token to clipboard on Wayland
+
+## Repo Structure
+
+```
+claude-deploy-skill/
+├── claude-deploy          # main CLI (setup/token/profiles/status)
+├── SKILL.md               # Claude skill instructions
+├── README.md
+└── docs/
+    ├── github-app-setup.md  # one-time GitHub App setup guide
+    ├── dogfood.md           # friction notes / fu.garden product spec
+    └── session-handover.md  # this file
+```
+
+## Current State
+
+- `fluid-notion-labs/claude-deploy-skill` — active repo ✓
+- `nhemsley/gh-pages-skill` — old repo, superseded, archive it
+- `claude-deploy setup` — run this locally with `--profile fluid-notion-labs` if not done yet
+- fu.garden — federated jj hosting concept, sketched in `docs/dogfood.md`
