@@ -221,7 +221,6 @@ PYEOF
         --method POST \
         --header "Authorization: Bearer $JWT" \
         --header "Accept: application/vnd.github+json" \
-        --field "repositories[]=$(echo $REPO | cut -d'/' -f2)" \
         --jq '.token')
 
     EXPIRY=$(date -d '+1 hour' '+%H:%M %Z')
@@ -295,7 +294,6 @@ PYEOF
         --method POST \
         --header "Authorization: Bearer $JWT" \
         --header "Accept: application/vnd.github+json" \
-        --field "repositories[]=$(echo $REPO | cut -d'/' -f2)" \
         --jq '.token')
 
     EXPIRY=$(date -d '+1 hour' '+%H:%M %Z')
