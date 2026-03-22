@@ -205,7 +205,13 @@ PYEOF
 
     INSTALL=$(gh api "/repos/$REPO/installation" \
         --header "Authorization: Bearer $JWT" \
-        --header "Accept: application/vnd.github+json")
+        --header "Accept: application/vnd.github+json" 2>&1) || {
+        OWNER=$(echo "$REPO" | cut -d'/' -f1)
+        echo "Error: app not installed on '$REPO'" >&2
+        echo "Grant access at:" >&2
+        echo "  https://github.com/organizations/$OWNER/settings/installations" >&2
+        exit 1
+    }
 
     INSTALL_ID=$(echo "$INSTALL" | jq -r '.id')
 
@@ -294,7 +300,13 @@ PYEOF
     if [[ -n "$REPO" ]]; then
         INSTALL=$(gh api "/repos/$REPO/installation" \
             --header "Authorization: Bearer $JWT" \
-            --header "Accept: application/vnd.github+json")
+            --header "Accept: application/vnd.github+json" 2>&1) || {
+            OWNER=$(echo "$REPO" | cut -d'/' -f1)
+            echo "Error: app not installed on '$REPO'" >&2
+            echo "Grant access at:" >&2
+            echo "  https://github.com/organizations/$OWNER/settings/installations" >&2
+            exit 1
+        }
     else
         INSTALL=$(gh api "/app/installations" \
             --header "Authorization: Bearer $JWT" \
