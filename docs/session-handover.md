@@ -15,24 +15,14 @@ This repo contains the skill itself, the `claude-deploy` bash script, and setup 
 
 ## Auth Flow (every session)
 
-1. Run locally:
+Run locally:
 ```sh
-claude-deploy token <owner/repo> --profile <profile>
+claude-deploy handover <owner/repo> --org <profile>
 ```
 
-2. Paste the token into Claude.
+This generates a token, builds the full session context, and copies it to clipboard. Paste into Claude — done.
 
-3. Claude clones/pushes via HTTPS like this:
-```sh
-git clone https://x-access-token:<TOKEN>@github.com/<owner>/<repo>.git
-# then before pushing, ensure remote uses the x-access-token: prefix:
-git remote set-url origin https://x-access-token:<TOKEN>@github.com/<owner>/<repo>.git
-git push origin main
-```
-
-> **Note:** The bare token URL (`https://<TOKEN>@github.com/...`) may work for clone but fails on push. Always use `x-access-token:<TOKEN>` format.
-
-Token expires in 1 hour. Run `claude-deploy token` again if it expires.
+Token expires in 1 hour. Re-run `claude-deploy handover` if it expires.
 
 ## Local Setup (one time)
 
@@ -56,12 +46,11 @@ claude-deploy setup --profile fluid-notion-labs
 
 ## Key Details
 
-- **App ID:** `3154535` (claude-deploy GitHub App, owned by nhemsley)
-- **PEM:** `~/.config/claude-deploy/private-key-fluid-notion-labs.pem`
+- **PEM:** stored in `~/.config/claude-deploy/` per profile
 - **GitHub App installed on:** `nhemsley` and `fluid-notion-labs`
 - **Container constraints:** no SSH, no persistent state between sessions — `api.github.com` is blocked by egress proxy; use `git clone/push` via HTTPS token URL instead
-- **Token is generated locally** via `claude-deploy token` then pasted to Claude
-- **wl-copy** used to auto-copy token to clipboard on Wayland
+- **Token is generated locally** via `claude-deploy handover` then pasted to Claude as a full context blob
+- **wl-copy** used to auto-copy handover to clipboard on Wayland
 
 ## Repo Structure
 

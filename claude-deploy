@@ -12,14 +12,15 @@ usage() {
 Usage: claude-deploy <command> [options]
 
 Commands:
-  setup    [--profile <n>]              Configure app ID and ingest PEM
-  token    <owner/repo> [--profile <n>] Get ephemeral token (copies to clipboard)
-  profiles                              List configured profiles
-  status   [--profile <n>]             Show current config
-  preamble <owner/repo> [--profile <n>] Print session preamble to paste into Claude
+  setup    [--org <n>]              Configure app ID and ingest PEM
+  token    <owner/repo> [--org <n>] Get ephemeral token (copies to clipboard)
+  handover <owner/repo> [--org <n>] Generate full session blob → wl-copy (paste into Claude)
+  profiles                          List configured profiles
+  status   [--org <n>]             Show current config
 
 Options:
-  --profile <n>   Use named profile (default: "default")
+  --org <n>     Use named org/profile (default: "default")
+  --profile <n> Alias for --org
 USAGE
     exit 1
 }
@@ -29,7 +30,7 @@ parse_profile() {
     POSITIONAL=()
     while [[ $# -gt 0 ]]; do
         case $1 in
-            --profile)
+            --profile|--org)
                 PROFILE="$2"
                 shift 2
                 ;;
@@ -167,31 +168,82 @@ cmd_status() {
     [[ -f "$PEM_PATH" ]] && echo "PEM file: ✓ exists" || echo "PEM file: ✗ missing"
 }
 
-cmd_preamble() {
+cmd_handover() {
     parse_profile "$@"
-    REPO="${POSITIONAL[0]:-<owner/repo>}"
+    REPO="${POSITIONAL[0]}"
+
+    if [[ -z "$REPO" ]]; then
+        echo "Usage: claude-deploy handover <owner/repo> [--org <n>]" >&2
+        exit 1
+    fi
+
     load_config "$PROFILE"
 
-    cat << PREAMBLE
-## Claude Deploy Session
+    echo "Generating token..." >&2
 
-- **Profile**: $PROFILE
-- **App ID**: $APP_ID
-- **Repo**: $REPO
-- **Skill**: [claude-deploy-skill](https://github.com/fluid-notion-labs/claude-deploy-skill)
+    JWT=$(uvx --with pyjwt --with cryptography python3 - << PYEOF
+import jwt, time
+pem = open("$PEM_PATH").read()
+now = int(time.time())
+print(jwt.encode({"iat": now - 60, "exp": now + 600, "iss": "$APP_ID"}, pem, algorithm="RS256"))
+PYEOF
+)
 
-Run locally then paste token here:
-\`\`\`sh
-claude-deploy token $REPO --profile $PROFILE
+    INSTALL=$(gh api "/repos/$REPO/installation" \
+        --header "Authorization: Bearer $JWT" \
+        --header "Accept: application/vnd.github+json")
+
+    INSTALL_ID=$(echo "$INSTALL" | jq -r '.id')
+
+    if [[ "$INSTALL_ID" == "null" || -z "$INSTALL_ID" ]]; then
+        echo "Error: app not installed on $REPO" >&2
+        exit 1
+    fi
+
+    TOKEN=$(gh api "/app/installations/$INSTALL_ID/access_tokens" \
+        --method POST \
+        --header "Authorization: Bearer $JWT" \
+        --header "Accept: application/vnd.github+json" \
+        --field "repositories[]=$(echo $REPO | cut -d'/' -f2)" \
+        --jq '.token')
+
+    EXPIRY=$(date -d '+1 hour' '+%H:%M %Z')
+
+    BLOB=$(cat << HANDOVER
+## claude-deploy session — $REPO
+
+Repo: \`$REPO\`
+Token (valid until $EXPIRY):
 \`\`\`
-PREAMBLE
+$TOKEN
+\`\`\`
+
+Clone and push:
+\`\`\`sh
+git clone https://x-access-token:$TOKEN@github.com/$REPO.git
+# always use x-access-token: prefix — bare token fails on push
+git remote set-url origin https://x-access-token:$TOKEN@github.com/$REPO.git
+git push origin main
+\`\`\`
+
+Skill: https://github.com/fluid-notion-labs/claude-deploy-skill
+HANDOVER
+)
+
+    if command -v wl-copy &> /dev/null; then
+        echo -n "$BLOB" | wl-copy
+        echo "📋 Handover copied to clipboard (token valid until $EXPIRY)" >&2
+    else
+        echo "⚠️  wl-copy not found" >&2
+        echo "$BLOB"
+    fi
 }
 
 case "$COMMAND" in
     setup)    cmd_setup "$@" ;;
     token)    cmd_token "$@" ;;
+    handover) cmd_handover "$@" ;;
     profiles) cmd_profiles ;;
     status)   cmd_status "$@" ;;
-    preamble) cmd_preamble "$@" ;;
     *)        usage ;;
 esac
