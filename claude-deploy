@@ -347,7 +347,7 @@ cmd_open() {
     xdg-open "$url" 2>/dev/null || echo "$url"
 }
 
-
+cmd_update() {
     # Resolve the actual installed script location
     DEST=$(command -v claude-deploy 2>/dev/null || realpath "$0")
     URL="https://raw.githubusercontent.com/fluid-notion-labs/claude-deploy-skill/main/claude-deploy?$(date +%s)"
