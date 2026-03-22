@@ -162,15 +162,35 @@ cmd_config() {
     esac
 }
 
+infer_profile() {
+    local repo="$1"
+    if [[ "$PROFILE" == "default" ]]; then
+        local owner=$(echo "$repo" | cut -d'/' -f1)
+        local owner_cfg=$(config_file "$owner")
+        if [[ -f "$owner_cfg" ]]; then
+            PROFILE="$owner"
+            echo "Using profile '$PROFILE' (inferred from repo owner)" >&2
+        else
+            local profiles=("$CONFIG_DIR"/config-*)
+            profiles=($(for f in "${profiles[@]}"; do [[ -f "$f" ]] && echo "$f"; done))
+            if [[ ${#profiles[@]} -eq 1 ]]; then
+                PROFILE=$(basename "${profiles[0]}" | sed 's/^config-//')
+                echo "Using profile '$PROFILE' (only profile configured)" >&2
+            fi
+        fi
+    fi
+}
+
 cmd_token() {
     parse_profile "$@"
     REPO="${POSITIONAL[0]}"
 
     if [[ -z "$REPO" ]]; then
-        echo "Usage: claude-deploy token <owner/repo> [--profile <n>]" >&2
+        echo "Usage: claude-deploy token <owner/repo> [--org <n>]" >&2
         exit 1
     fi
 
+    infer_profile "$REPO"
     load_config "$PROFILE"
 
     JWT=$(uvx --with pyjwt --with cryptography python3 - << PYEOF
@@ -247,25 +267,7 @@ cmd_handover() {
         exit 1
     fi
 
-    # Infer profile if not explicitly set
-    if [[ "$PROFILE" == "default" ]]; then
-        OWNER=$(echo "$REPO" | cut -d'/' -f1)
-        OWNER_CFG=$(config_file "$OWNER")
-        if [[ -f "$OWNER_CFG" ]]; then
-            # Repo owner matches a profile name
-            PROFILE="$OWNER"
-            echo "Using profile '$PROFILE' (inferred from repo owner)" >&2
-        else
-            # Fall back: if exactly one non-default profile exists, use it
-            PROFILES=("$CONFIG_DIR"/config-*)
-            PROFILES=($(for f in "${PROFILES[@]}"; do [[ -f "$f" ]] && echo "$f"; done))
-            if [[ ${#PROFILES[@]} -eq 1 ]]; then
-                PROFILE=$(basename "${PROFILES[0]}" | sed 's/^config-//')
-                echo "Using profile '$PROFILE' (only profile configured)" >&2
-            fi
-        fi
-    fi
-
+    infer_profile "$REPO"
     load_config "$PROFILE"
 
     echo "Generating token..." >&2
