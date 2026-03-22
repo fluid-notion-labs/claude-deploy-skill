@@ -40,7 +40,7 @@ Usage: claude-deploy <command> [options]
 Commands:
   setup    [--org <n>]              Configure app ID and ingest PEM
   token    <owner/repo> [--org <n>] Get ephemeral token (copies to clipboard)
-  handover <owner/repo> [--org <n>] Generate full session blob → wl-copy (paste into Claude)
+  handover [<owner/repo>] [--org <n>] Generate session blob → wl-copy; lists all repos if no repo given
   open     [--org <n>]             Open GitHub App settings to add repos
   update                            Overwrite this script from main branch
   config   auto-update [on|off]    Toggle auto-update on each run
@@ -261,12 +261,23 @@ cmd_handover() {
     parse_profile "$@"
     REPO="${POSITIONAL[0]}"
 
+    # If no repo given, infer profile from single profile or require --org
     if [[ -z "$REPO" ]]; then
-        echo "Usage: claude-deploy handover <owner/repo> [--org <n>]" >&2
-        exit 1
+        if [[ "$PROFILE" == "default" ]]; then
+            local profiles=("$CONFIG_DIR"/config-*)
+            profiles=($(for f in "${profiles[@]}"; do [[ -f "$f" ]] && echo "$f"; done))
+            if [[ ${#profiles[@]} -eq 1 ]]; then
+                PROFILE=$(basename "${profiles[0]}" | sed 's/^config-//')
+                echo "Using profile '$PROFILE' (only profile configured)" >&2
+            else
+                echo "Usage: claude-deploy handover [<owner/repo>] [--org <n>]" >&2
+                exit 1
+            fi
+        fi
+    else
+        infer_profile "$REPO"
     fi
 
-    infer_profile "$REPO"
     load_config "$PROFILE"
 
     echo "Generating token..." >&2
@@ -279,16 +290,30 @@ print(jwt.encode({"iat": now - 60, "exp": now + 600, "iss": "$APP_ID"}, pem, alg
 PYEOF
 )
 
-    INSTALL=$(gh api "/repos/$REPO/installation" \
-        --header "Authorization: Bearer $JWT" \
-        --header "Accept: application/vnd.github+json")
+    # Get installation ID — use repo if given, else org-level lookup
+    if [[ -n "$REPO" ]]; then
+        INSTALL=$(gh api "/repos/$REPO/installation" \
+            --header "Authorization: Bearer $JWT" \
+            --header "Accept: application/vnd.github+json")
+    else
+        INSTALL=$(gh api "/app/installations" \
+            --header "Authorization: Bearer $JWT" \
+            --header "Accept: application/vnd.github+json" \
+            | jq "[.[] | select(.account.login == \"$PROFILE\")][0]")
+    fi
 
     INSTALL_ID=$(echo "$INSTALL" | jq -r '.id')
 
     if [[ "$INSTALL_ID" == "null" || -z "$INSTALL_ID" ]]; then
-        echo "Error: app not installed on $REPO" >&2
+        echo "Error: app not installed on '$PROFILE'" >&2
         exit 1
     fi
+
+    # Get all repos for this installation
+    REPOS_JSON=$(gh api "/app/installations/$INSTALL_ID/repositories" \
+        --header "Authorization: Bearer $JWT" \
+        --header "Accept: application/vnd.github+json" \
+        | jq -r '.repositories[].full_name')
 
     TOKEN=$(gh api "/app/installations/$INSTALL_ID/access_tokens" \
         --method POST \
@@ -298,10 +323,21 @@ PYEOF
 
     EXPIRY=$(date -d '+1 hour' '+%H:%M %Z')
 
-    BLOB=$(cat << HANDOVER
-## claude-deploy session — $REPO
+    # Build repo list for blob
+    if [[ -n "$REPO" ]]; then
+        REPO_SECTION="Repo: \`$REPO\`"
+        SESSION_TITLE="$REPO"
+    else
+        REPO_LIST=$(echo "$REPOS_JSON" | sed 's/^/- /')
+        REPO_SECTION="Repos (ask user which to work on):
+$REPO_LIST"
+        SESSION_TITLE="$PROFILE"
+    fi
 
-Repo: \`$REPO\`
+    BLOB=$(cat << HANDOVER
+## claude-deploy session — $SESSION_TITLE
+
+$REPO_SECTION
 Token (valid until $EXPIRY):
 \`\`\`
 $TOKEN
@@ -309,9 +345,8 @@ $TOKEN
 
 Clone and push:
 \`\`\`sh
-git clone https://x-access-token:$TOKEN@github.com/$REPO.git
-# always use x-access-token: prefix — bare token fails on push
-git remote set-url origin https://x-access-token:$TOKEN@github.com/$REPO.git
+git clone https://x-access-token:$TOKEN@github.com/<owner>/<repo>.git
+git remote set-url origin https://x-access-token:$TOKEN@github.com/<owner>/<repo>.git
 git push origin main
 \`\`\`
 
