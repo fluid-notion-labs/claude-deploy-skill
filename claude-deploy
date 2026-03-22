@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+# claude-deploy — manage Claude GitHub deploy credentials
+# Commands: setup, token, profiles, status
+set -e
+
+CONFIG_DIR="${CLAUDE_DEPLOY_DIR:-$HOME/.config/claude-deploy}"
+COMMAND=$1
+shift || true
+
+usage() {
+    cat >&2 << 'USAGE'
+Usage: claude-deploy <command> [options]
+
+Commands:
+  setup   [--profile <name>]              Configure app ID and ingest PEM
+  token   <owner/repo> [--profile <name>] Get ephemeral token (copies to clipboard)
+  profiles                                List configured profiles
+  status  [--profile <name>]              Show current config
+
+Options:
+  --profile <name>   Use named profile (default: "default")
+USAGE
+    exit 1
+}
+
+# Parse --profile flag from remaining args
+parse_profile() {
+    PROFILE="default"
+    POSITIONAL=()
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --profile)
+                PROFILE="$2"
+                shift 2
+                ;;
+            *)
+                POSITIONAL+=("$1")
+                shift
+                ;;
+        esac
+    done
+}
+
+config_file() {
+    if [[ "$1" == "default" ]]; then
+        echo "$CONFIG_DIR/config"
+    else
+        echo "$CONFIG_DIR/config-$1"
+    fi
+}
+
+load_config() {
+    local file=$(config_file "$1")
+    if [[ ! -f "$file" ]]; then
+        echo "Error: no config for profile '$1' — run: claude-deploy setup --profile $1" >&2
+        exit 1
+    fi
+    source "$file"
+}
+
+cmd_setup() {
+    parse_profile "$@"
+    local file=$(config_file "$PROFILE")
+    mkdir -p "$CONFIG_DIR"
+
+    echo "Setting up profile: $PROFILE"
+
+    # App ID
+    read -p "GitHub App ID: " APP_ID
+    if [[ -z "$APP_ID" ]]; then
+        echo "Error: App ID required" >&2
+        exit 1
+    fi
+
+    # PEM
+    read -p "Path to PEM file (will be copied to $CONFIG_DIR/): " PEM_SRC
+    PEM_SRC="${PEM_SRC/#\~/$HOME}"
+    if [[ ! -f "$PEM_SRC" ]]; then
+        echo "Error: PEM not found at $PEM_SRC" >&2
+        exit 1
+    fi
+
+    PEM_DEST="$CONFIG_DIR/private-key-$PROFILE.pem"
+    cp "$PEM_SRC" "$PEM_DEST"
+    chmod 600 "$PEM_DEST"
+    echo "PEM copied to $PEM_DEST"
+
+    cat > "$file" << CONF
+APP_ID=$APP_ID
+PEM_PATH=$PEM_DEST
+CONF
+    chmod 600 "$file"
+    echo "✓ Profile '$PROFILE' saved to $file"
+}
+
+cmd_token() {
+    parse_profile "$@"
+    REPO="${POSITIONAL[0]}"
+
+    if [[ -z "$REPO" ]]; then
+        echo "Usage: claude-deploy token <owner/repo> [--profile <name>]" >&2
+        exit 1
+    fi
+
+    load_config "$PROFILE"
+
+    JWT=$(uvx --with pyjwt --with cryptography python3 - << PYEOF
+import jwt, time
+pem = open("$PEM_PATH").read()
+now = int(time.time())
+print(jwt.encode({"iat": now - 60, "exp": now + 600, "iss": "$APP_ID"}, pem, algorithm="RS256"))
+PYEOF
+)
+
+    echo "JWT generated, looking up installation..." >&2
+
+    INSTALL=$(gh api "/repos/$REPO/installation" \
+        --header "Authorization: Bearer $JWT" \
+        --header "Accept: application/vnd.github+json")
+
+    INSTALL_ID=$(echo "$INSTALL" | jq -r '.id')
+
+    if [[ "$INSTALL_ID" == "null" || -z "$INSTALL_ID" ]]; then
+        echo "Error: app not installed on $REPO" >&2
+        echo "$INSTALL" | jq . >&2
+        exit 1
+    fi
+
+    echo "Installation ID: $INSTALL_ID" >&2
+
+    TOKEN=$(gh api "/app/installations/$INSTALL_ID/access_tokens" \
+        --method POST \
+        --header "Authorization: Bearer $JWT" \
+        --header "Accept: application/vnd.github+json" \
+        --field "repositories[]=$(echo $REPO | cut -d'/' -f2)" \
+        --jq '.token')
+
+    EXPIRY=$(date -d '+1 hour' '+%H:%M %Z')
+    echo "Token valid until: $EXPIRY" >&2
+
+    if command -v wl-copy &> /dev/null; then
+        echo -n "$TOKEN" | wl-copy
+        echo "📋 Token copied to clipboard (valid until $EXPIRY)" >&2
+    else
+        echo "⚠️  wl-copy not found — copy the token below manually" >&2
+    fi
+
+    echo "$TOKEN"
+}
+
+cmd_profiles() {
+    echo "Configured profiles:"
+    for f in "$CONFIG_DIR"/config "$CONFIG_DIR"/config-*; do
+        [[ -f "$f" ]] || continue
+        name=$(basename "$f")
+        [[ "$name" == "config" ]] && name="default"
+        [[ "$name" == config-* ]] && name="${name#config-}"
+        source "$f"
+        echo "  $name — App ID: $APP_ID, PEM: $PEM_PATH"
+    done
+}
+
+cmd_status() {
+    parse_profile "$@"
+    load_config "$PROFILE"
+    echo "Profile:  $PROFILE"
+    echo "App ID:   $APP_ID"
+    echo "PEM:      $PEM_PATH"
+    [[ -f "$PEM_PATH" ]] && echo "PEM file: ✓ exists" || echo "PEM file: ✗ missing"
+}
+
+case "$COMMAND" in
+    setup)    cmd_setup "$@" ;;
+    token)    cmd_token "$@" ;;
+    profiles) cmd_profiles ;;
+    status)   cmd_status "$@" ;;
+    *)        usage ;;
+esac
