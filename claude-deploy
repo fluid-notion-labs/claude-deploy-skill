@@ -177,6 +177,25 @@ cmd_handover() {
         exit 1
     fi
 
+    # Infer profile if not explicitly set
+    if [[ "$PROFILE" == "default" ]]; then
+        OWNER=$(echo "$REPO" | cut -d'/' -f1)
+        OWNER_CFG=$(config_file "$OWNER")
+        if [[ -f "$OWNER_CFG" ]]; then
+            # Repo owner matches a profile name
+            PROFILE="$OWNER"
+            echo "Using profile '$PROFILE' (inferred from repo owner)" >&2
+        else
+            # Fall back: if exactly one non-default profile exists, use it
+            PROFILES=("$CONFIG_DIR"/config-*)
+            PROFILES=($(for f in "${PROFILES[@]}"; do [[ -f "$f" ]] && echo "$f"; done))
+            if [[ ${#PROFILES[@]} -eq 1 ]]; then
+                PROFILE=$(basename "${PROFILES[0]}" | sed 's/^config-//')
+                echo "Using profile '$PROFILE' (only profile configured)" >&2
+            fi
+        fi
+    fi
+
     load_config "$PROFILE"
 
     echo "Generating token..." >&2
