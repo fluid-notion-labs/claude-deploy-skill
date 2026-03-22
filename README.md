@@ -27,3 +27,14 @@ See [docs/github-app-setup.md](docs/github-app-setup.md) for one-time GitHub App
 - [Your GitHub Apps](https://github.com/settings/apps)
 - [fluid-notion-labs org](https://github.com/fluid-notion-labs)
 - [Cloudflare Workers](https://workers.cloudflare.com)
+
+## Starting a Claude Session
+
+At the start of each session, tell Claude:
+
+```
+App ID: <app_id>
+Repo: <owner/repo>
+```
+
+Then run `gh-app-token` and paste the token. Claude will handle the rest.
