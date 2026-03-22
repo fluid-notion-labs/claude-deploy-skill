@@ -25,10 +25,12 @@ claude-deploy token <owner/repo> --profile <profile>
 3. Claude clones/pushes via HTTPS like this:
 ```sh
 git clone https://x-access-token:<TOKEN>@github.com/<owner>/<repo>.git
-# or
+# then before pushing, ensure remote uses the x-access-token: prefix:
 git remote set-url origin https://x-access-token:<TOKEN>@github.com/<owner>/<repo>.git
 git push origin main
 ```
+
+> **Note:** The bare token URL (`https://<TOKEN>@github.com/...`) may work for clone but fails on push. Always use `x-access-token:<TOKEN>` format.
 
 Token expires in 1 hour. Run `claude-deploy token` again if it expires.
 
