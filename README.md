@@ -1,21 +1,52 @@
 # claude-deploy-skill
 
-Claude skill for pushing files to GitHub Pages using ephemeral GitHub App tokens.
+Claude skill for pushing files to GitHub repos using ephemeral GitHub App tokens.
 
 ## Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/fluid-notion-labs/claude-deploy-skill/main/gh-app-token.sh \
-  -o ~/.local/bin/gh-app-token && chmod +x ~/.local/bin/gh-app-token
+curl -fsSL https://raw.githubusercontent.com/fluid-notion-labs/claude-deploy-skill/main/claude-deploy \
+  -o ~/.local/bin/claude-deploy && chmod +x ~/.local/bin/claude-deploy
 ```
 
-## Usage
+> If you have an old `gh-app-token` in `~/.local/bin`, remove it: `rm ~/.local/bin/gh-app-token`
+
+## First Time Setup
 
 ```sh
-gh-app-token <app_id> <owner/repo>
+claude-deploy setup --profile fluid-notion-labs
 ```
 
-Token is printed to stdout and copied to clipboard via `wl-copy` if available. Paste into Claude. Done.
+Prompts for App ID and PEM path. Copies PEM to `~/.config/claude-deploy/` and saves config.
+
+## Every Session
+
+```sh
+claude-deploy token <owner/repo> --profile fluid-notion-labs
+```
+
+Token printed to stdout and copied to clipboard via `wl-copy`. Paste into Claude.
+
+## Commands
+
+```sh
+claude-deploy setup    [--profile <n>]              # configure app ID and ingest PEM
+claude-deploy token    <owner/repo> [--profile <n>] # get ephemeral token
+claude-deploy profiles                              # list configured profiles
+claude-deploy status   [--profile <n>]              # show current config
+```
+
+## Starting a Claude Session
+
+Tell Claude at the start of each session:
+
+```
+App ID: <app_id>
+Repo: <owner/repo>
+Profile: <profile>
+```
+
+Then run `claude-deploy token` and paste the result.
 
 ## Setup
 
@@ -27,14 +58,3 @@ See [docs/github-app-setup.md](docs/github-app-setup.md) for one-time GitHub App
 - [Your GitHub Apps](https://github.com/settings/apps)
 - [fluid-notion-labs org](https://github.com/fluid-notion-labs)
 - [Cloudflare Workers](https://workers.cloudflare.com)
-
-## Starting a Claude Session
-
-At the start of each session, tell Claude:
-
-```
-App ID: <app_id>
-Repo: <owner/repo>
-```
-
-Then run `gh-app-token` and paste the token. Claude will handle the rest.
