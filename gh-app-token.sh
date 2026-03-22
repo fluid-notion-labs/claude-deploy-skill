@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # gh-app-token.sh
-# Usage: ./gh-app-token.sh <app_id> <owner/repo>
+# Usage: gh-app-token <app_id> <owner/repo>
 # Assumes PEM at ~/.config/claude-deploy/private-key.pem
 set -e
 
@@ -50,5 +50,16 @@ TOKEN=$(gh api "/app/installations/$INSTALL_ID/access_tokens" \
     --field "repositories[]=$(echo $REPO | cut -d'/' -f2)" \
     --jq '.token')
 
-echo "Token valid until: $(date -d '+1 hour' '+%H:%M %Z')" >&2
+EXPIRY=$(date -d '+1 hour' '+%H:%M %Z')
+
+echo "Token valid until: $EXPIRY" >&2
+
+# Copy to clipboard if wl-copy is available
+if command -v wl-copy &> /dev/null; then
+    echo -n "$TOKEN" | wl-copy
+    echo "📋 Token copied to clipboard (valid until $EXPIRY)" >&2
+else
+    echo "⚠️  wl-copy not found — copy the token below manually" >&2
+fi
+
 echo "$TOKEN"
