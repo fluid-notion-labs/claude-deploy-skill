@@ -203,15 +203,19 @@ PYEOF
 
     echo "JWT generated, looking up installation..." >&2
 
+    set +e
     INSTALL=$(gh api "/repos/$REPO/installation" \
         --header "Authorization: Bearer $JWT" \
-        --header "Accept: application/vnd.github+json" 2>&1) || {
+        --header "Accept: application/vnd.github+json" 2>&1)
+    GH_EXIT=$?
+    set -e
+    if [[ $GH_EXIT -ne 0 ]]; then
         OWNER=$(echo "$REPO" | cut -d'/' -f1)
         echo "Error: app not installed on '$REPO'" >&2
         echo "Grant access at:" >&2
         echo "  https://github.com/organizations/$OWNER/settings/installations" >&2
         exit 1
-    }
+    fi
 
     INSTALL_ID=$(echo "$INSTALL" | jq -r '.id')
 
@@ -298,15 +302,19 @@ PYEOF
 
     # Get installation ID — use repo if given, else org-level lookup
     if [[ -n "$REPO" ]]; then
+        set +e
         INSTALL=$(gh api "/repos/$REPO/installation" \
             --header "Authorization: Bearer $JWT" \
-            --header "Accept: application/vnd.github+json" 2>&1) || {
+            --header "Accept: application/vnd.github+json" 2>&1)
+        GH_EXIT=$?
+        set -e
+        if [[ $GH_EXIT -ne 0 ]]; then
             OWNER=$(echo "$REPO" | cut -d'/' -f1)
             echo "Error: app not installed on '$REPO'" >&2
             echo "Grant access at:" >&2
             echo "  https://github.com/organizations/$OWNER/settings/installations" >&2
             exit 1
-        }
+        fi
     else
         INSTALL=$(gh api "/app/installations" \
             --header "Authorization: Bearer $JWT" \
