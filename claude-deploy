@@ -9,7 +9,7 @@ shift || true
 
 # Auto-update: if enabled in global config, update before running (except during update itself)
 GLOBAL_CFG="$CONFIG_DIR/config"
-if [[ "$COMMAND" != "update" && -f "$GLOBAL_CFG" ]]; then
+if [[ "$COMMAND" != "update" && "$COMMAND" != "config" && -f "$GLOBAL_CFG" ]]; then
     source "$GLOBAL_CFG"
     if [[ "${AUTO_UPDATE:-0}" == "1" ]]; then
         DEST=$(command -v claude-deploy 2>/dev/null || realpath "$0")
