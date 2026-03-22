@@ -350,7 +350,7 @@ cmd_open() {
 
     # Resolve the actual installed script location
     DEST=$(command -v claude-deploy 2>/dev/null || realpath "$0")
-    URL="https://raw.githubusercontent.com/fluid-notion-labs/claude-deploy-skill/main/claude-deploy"
+    URL="https://raw.githubusercontent.com/fluid-notion-labs/claude-deploy-skill/main/claude-deploy?$(date +%s)"
     echo "Updating $DEST from main..." >&2
     curl -fsSL "$URL" -o "$DEST"
     chmod +x "$DEST"
