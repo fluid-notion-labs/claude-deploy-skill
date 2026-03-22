@@ -27,7 +27,7 @@ if [[ "$NO_UPDATE" == "0" && "$COMMAND" != "update" && "$COMMAND" != "config" &&
         DEST=$(command -v claude-deploy 2>/dev/null || realpath "$0")
         URL="https://raw.githubusercontent.com/fluid-notion-labs/claude-deploy-skill/main/claude-deploy"
         echo "Auto-updating..." >&2
-        curl -fsSL "$URL" -o "$DEST"
+        curl -fsSL -H "Cache-Control: no-cache" "$URL" -o "$DEST"
         chmod +x "$DEST"
         exec "$DEST" "$COMMAND" "$@" --no-update
     fi
@@ -350,9 +350,9 @@ cmd_open() {
 cmd_update() {
     # Resolve the actual installed script location
     DEST=$(command -v claude-deploy 2>/dev/null || realpath "$0")
-    URL="https://raw.githubusercontent.com/fluid-notion-labs/claude-deploy-skill/main/claude-deploy?$(date +%s)"
+    URL="https://raw.githubusercontent.com/fluid-notion-labs/claude-deploy-skill/main/claude-deploy"
     echo "Updating $DEST from main..." >&2
-    curl -fsSL "$URL" -o "$DEST"
+    curl -fsSL -H "Cache-Control: no-cache" "$URL" -o "$DEST"
     chmod +x "$DEST"
     echo "✓ Updated" >&2
 }
