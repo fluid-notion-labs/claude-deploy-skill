@@ -6,7 +6,7 @@ Paste this doc at the start of a new Claude session to get up to speed instantly
 
 ## Context
 
-We have a workflow for Claude to push files to GitHub repos using ephemeral GitHub App tokens. Claude runs in a container with no SSH binary and no access to `api.github.com` — so auth is done locally and the token is pasted in.
+We have a workflow for Claude to push files to GitHub repos using ephemeral GitHub App tokens. Claude runs in a container with no SSH binary and `api.github.com` blocked by the egress proxy — so auth is done locally and the token is pasted in. All git operations use HTTPS token URLs directly against `github.com`.
 
 ## Repo
 
@@ -57,7 +57,7 @@ claude-deploy setup --profile fluid-notion-labs
 - **App ID:** `3154535` (claude-deploy GitHub App, owned by nhemsley)
 - **PEM:** `~/.config/claude-deploy/private-key-fluid-notion-labs.pem`
 - **GitHub App installed on:** `nhemsley` and `fluid-notion-labs`
-- **Container constraints:** no SSH, no `api.github.com`, no persistent state between sessions
+- **Container constraints:** no SSH, no persistent state between sessions — `api.github.com` is blocked by egress proxy; use `git clone/push` via HTTPS token URL instead
 - **Token is generated locally** via `claude-deploy token` then pasted to Claude
 - **wl-copy** used to auto-copy token to clipboard on Wayland
 
