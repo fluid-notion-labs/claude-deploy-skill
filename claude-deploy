@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # claude-deploy — manage Claude GitHub deploy credentials
-# Commands: setup, token, profiles, status
+# Commands: setup, token, profiles, status, preamble
 set -e
 
 CONFIG_DIR="${CLAUDE_DEPLOY_DIR:-$HOME/.config/claude-deploy}"
@@ -12,18 +12,18 @@ usage() {
 Usage: claude-deploy <command> [options]
 
 Commands:
-  setup   [--profile <name>]              Configure app ID and ingest PEM
-  token   <owner/repo> [--profile <name>] Get ephemeral token (copies to clipboard)
-  profiles                                List configured profiles
-  status  [--profile <name>]              Show current config
+  setup    [--profile <n>]              Configure app ID and ingest PEM
+  token    <owner/repo> [--profile <n>] Get ephemeral token (copies to clipboard)
+  profiles                              List configured profiles
+  status   [--profile <n>]             Show current config
+  preamble <owner/repo> [--profile <n>] Print session preamble to paste into Claude
 
 Options:
-  --profile <name>   Use named profile (default: "default")
+  --profile <n>   Use named profile (default: "default")
 USAGE
     exit 1
 }
 
-# Parse --profile flag from remaining args
 parse_profile() {
     PROFILE="default"
     POSITIONAL=()
@@ -65,14 +65,12 @@ cmd_setup() {
 
     echo "Setting up profile: $PROFILE"
 
-    # App ID
     read -p "GitHub App ID: " APP_ID
     if [[ -z "$APP_ID" ]]; then
         echo "Error: App ID required" >&2
         exit 1
     fi
 
-    # PEM
     read -p "Path to PEM file (will be copied to $CONFIG_DIR/): " PEM_SRC
     PEM_SRC="${PEM_SRC/#\~/$HOME}"
     if [[ ! -f "$PEM_SRC" ]]; then
@@ -98,7 +96,7 @@ cmd_token() {
     REPO="${POSITIONAL[0]}"
 
     if [[ -z "$REPO" ]]; then
-        echo "Usage: claude-deploy token <owner/repo> [--profile <name>]" >&2
+        echo "Usage: claude-deploy token <owner/repo> [--profile <n>]" >&2
         exit 1
     fi
 
@@ -169,10 +167,31 @@ cmd_status() {
     [[ -f "$PEM_PATH" ]] && echo "PEM file: ✓ exists" || echo "PEM file: ✗ missing"
 }
 
+cmd_preamble() {
+    parse_profile "$@"
+    REPO="${POSITIONAL[0]:-<owner/repo>}"
+    load_config "$PROFILE"
+
+    cat << PREAMBLE
+## Claude Deploy Session
+
+- **Profile**: $PROFILE
+- **App ID**: $APP_ID
+- **Repo**: $REPO
+- **Skill**: [claude-deploy-skill](https://github.com/fluid-notion-labs/claude-deploy-skill)
+
+Run locally then paste token here:
+\`\`\`sh
+claude-deploy token $REPO --profile $PROFILE
+\`\`\`
+PREAMBLE
+}
+
 case "$COMMAND" in
     setup)    cmd_setup "$@" ;;
     token)    cmd_token "$@" ;;
     profiles) cmd_profiles ;;
     status)   cmd_status "$@" ;;
+    preamble) cmd_preamble "$@" ;;
     *)        usage ;;
 esac
