@@ -12,7 +12,7 @@ GLOBAL_CFG="$CONFIG_DIR/config"
 if [[ "$COMMAND" != "update" && -f "$GLOBAL_CFG" ]]; then
     source "$GLOBAL_CFG"
     if [[ "${AUTO_UPDATE:-0}" == "1" ]]; then
-        DEST=$(realpath "$0")
+        DEST=$(command -v claude-deploy 2>/dev/null || realpath "$0")
         URL="https://raw.githubusercontent.com/fluid-notion-labs/claude-deploy-skill/main/claude-deploy"
         echo "Auto-updating..." >&2
         curl -fsSL "$URL" -o "$DEST"
@@ -316,7 +316,8 @@ HANDOVER
 }
 
 cmd_update() {
-    DEST=$(realpath "$0")
+    # Resolve the actual installed script location
+    DEST=$(command -v claude-deploy 2>/dev/null || realpath "$0")
     URL="https://raw.githubusercontent.com/fluid-notion-labs/claude-deploy-skill/main/claude-deploy"
     echo "Updating $DEST from main..." >&2
     curl -fsSL "$URL" -o "$DEST"
