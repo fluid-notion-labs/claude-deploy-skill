@@ -26,10 +26,17 @@ if [[ "$NO_UPDATE" == "0" && "$COMMAND" != "update" && "$COMMAND" != "config" &&
     if [[ "${AUTO_UPDATE:-0}" == "1" ]]; then
         DEST=$(command -v claude-deploy 2>/dev/null || realpath "$0")
         URL="https://raw.githubusercontent.com/fluid-notion-labs/claude-deploy-skill/main/claude-deploy"
+        TMP=$(mktemp)
         echo "Auto-updating..." >&2
-        curl -fsSL -H "Cache-Control: no-cache" "$URL" -o "$DEST"
-        chmod +x "$DEST"
-        exec "$DEST" "$COMMAND" "$@" --no-update
+        curl -fsSL -H "Cache-Control: no-cache" "$URL" -o "$TMP"
+        if bash -n "$TMP" 2>/dev/null; then
+            mv "$TMP" "$DEST"
+            chmod +x "$DEST"
+            exec "$DEST" "$COMMAND" "$@" --no-update
+        else
+            echo "⚠️  Auto-update failed syntax check, continuing with current version" >&2
+            rm -f "$TMP"
+        fi
     fi
 fi
 
@@ -404,11 +411,17 @@ cmd_open() {
 }
 
 cmd_update() {
-    # Resolve the actual installed script location
     DEST=$(command -v claude-deploy 2>/dev/null || realpath "$0")
     URL="https://raw.githubusercontent.com/fluid-notion-labs/claude-deploy-skill/main/claude-deploy"
+    TMP=$(mktemp)
     echo "Updating $DEST from main..." >&2
-    curl -fsSL -H "Cache-Control: no-cache" "$URL" -o "$DEST"
+    curl -fsSL -H "Cache-Control: no-cache" "$URL" -o "$TMP"
+    if ! bash -n "$TMP" 2>/dev/null; then
+        echo "✗ Downloaded file has syntax errors, aborting" >&2
+        rm -f "$TMP"
+        exit 1
+    fi
+    mv "$TMP" "$DEST"
     chmod +x "$DEST"
     echo "✓ Updated" >&2
 }
