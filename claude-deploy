@@ -25,10 +25,15 @@ if [[ "$NO_UPDATE" == "0" && "$COMMAND" != "update" && "$COMMAND" != "config" &&
     source "$GLOBAL_CFG"
     if [[ "${AUTO_UPDATE:-0}" == "1" ]]; then
         DEST=$(command -v claude-deploy 2>/dev/null || realpath "$0")
-        URL="https://raw.githubusercontent.com/fluid-notion-labs/claude-deploy-skill/main/claude-deploy"
+        REPO_DIR="${CLAUDE_DEPLOY_REPO:-$HOME/.config/claude-deploy/repo}"
         TMP=$(mktemp)
         echo "Auto-updating..." >&2
-        curl -fsSL -H "Cache-Control: no-cache" "$URL" -o "$TMP"
+        if [[ -d "$REPO_DIR/.git" ]]; then
+            git -C "$REPO_DIR" pull --ff-only origin main -q
+        else
+            git clone -q https://github.com/fluid-notion-labs/claude-deploy-skill.git "$REPO_DIR"
+        fi
+        cp "$REPO_DIR/claude-deploy" "$TMP"
         if bash -n "$TMP" 2>/dev/null; then
             mv "$TMP" "$DEST"
             chmod +x "$DEST"
@@ -412,18 +417,28 @@ cmd_open() {
 
 cmd_update() {
     DEST=$(command -v claude-deploy 2>/dev/null || realpath "$0")
-    URL="https://raw.githubusercontent.com/fluid-notion-labs/claude-deploy-skill/main/claude-deploy"
+    REPO_DIR="${CLAUDE_DEPLOY_REPO:-$HOME/.config/claude-deploy/repo}"
+    URL="https://github.com/fluid-notion-labs/claude-deploy-skill.git"
+
+    if [[ -d "$REPO_DIR/.git" ]]; then
+        echo "Pulling latest from main..." >&2
+        git -C "$REPO_DIR" pull --ff-only origin main
+    else
+        echo "Cloning claude-deploy-skill..." >&2
+        mkdir -p "$(dirname "$REPO_DIR")"
+        git clone "$URL" "$REPO_DIR"
+    fi
+
     TMP=$(mktemp)
-    echo "Updating $DEST from main..." >&2
-    curl -fsSL -H "Cache-Control: no-cache" "$URL" -o "$TMP"
+    cp "$REPO_DIR/claude-deploy" "$TMP"
     if ! bash -n "$TMP" 2>/dev/null; then
-        echo "✗ Downloaded file has syntax errors, aborting" >&2
+        echo "✗ Updated file has syntax errors, aborting" >&2
         rm -f "$TMP"
         exit 1
     fi
     mv "$TMP" "$DEST"
     chmod +x "$DEST"
-    echo "✓ Updated" >&2
+    echo "✓ Updated to $(git -C "$REPO_DIR" rev-parse --short HEAD)" >&2
 }
 
 case "$COMMAND" in
