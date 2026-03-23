@@ -83,9 +83,13 @@ The update system has historically been tricky. Key details from the commit hist
 
 ## Remaining refactors (not yet done)
 
-- `_do_update()` helper — `cmd_update` and the auto-update block share git+copy logic; skipped this session due to the subtlety of the re-exec flow (see above)
 - `parse_profile` globals — `$PROFILE` and `$POSITIONAL[]` are set as globals; fragile but workable at this script size
 - `cmd_config` always writes to `config_file "default"` regardless of `--org`; intentional (AUTO_UPDATE is global) but undocumented
 - `cmd_open` uses `$PROFILE` as org name for the URL — breaks if default profile is used for a personal account
 - `date -d` is GNU-only; not cross-platform
 - Auto-update repo clone lives in `~/.config/` — `~/.cache/claude-deploy/repo` would be more XDG-correct
+
+## Recent refactors (this session continued)
+
+- `clipboard_copy()` extracted — tries wl-copy → xclip → xsel with clear error if none found (`b8d1336`)
+- `_do_update()` extracted — `cmd_update` and auto-update block now share git+copy+syntax-check logic via `--quiet`/`--dest` flags

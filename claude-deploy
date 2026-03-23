@@ -24,26 +24,60 @@ GLOBAL_CFG="$CONFIG_DIR/config"
 if [[ "$NO_UPDATE" == "0" && "$COMMAND" != "update" && "$COMMAND" != "watch" && "$COMMAND" != "config" && -f "$GLOBAL_CFG" ]]; then
     source "$GLOBAL_CFG"
     if [[ "${AUTO_UPDATE:-0}" == "1" ]]; then
-        DEST=$(command -v claude-deploy 2>/dev/null || realpath "$0")
-        REPO_DIR="${CLAUDE_DEPLOY_REPO:-$HOME/.config/claude-deploy/repo}"
-        TMP=$(mktemp)
         echo "Auto-updating..." >&2
-        if [[ -d "$REPO_DIR/.git" ]]; then
-            git -C "$REPO_DIR" pull --ff-only origin main -q
-        else
-            git clone -q https://github.com/fluid-notion-labs/claude-deploy-skill.git "$REPO_DIR"
-        fi
-        cp "$REPO_DIR/claude-deploy" "$TMP"
-        if bash -n "$TMP" 2>/dev/null; then
-            mv "$TMP" "$DEST"
-            chmod +x "$DEST"
+        DEST=$(command -v claude-deploy 2>/dev/null || realpath "$0")
+        if _do_update --quiet --dest "$DEST"; then
             exec "$DEST" "$COMMAND" "$@" --no-update
-        else
-            echo "⚠️  Auto-update failed syntax check, continuing with current version" >&2
-            rm -f "$TMP"
         fi
+        # _do_update failed syntax check — continue with current version (already warned)
     fi
 fi
+
+# Shared update logic for auto-update block and cmd_update.
+# Usage: _do_update [--quiet] [--dest <path>]
+#   --quiet:      suppress git output (for auto-update)
+#   --dest <path>: install path (default: command -v claude-deploy || realpath $0)
+# Returns 0 on success, 1 if syntax check fails (prints warning, cleans up).
+# On failure with exit-worthy condition (e.g. git error), propagates exit.
+_do_update() {
+    local quiet=0 dest=""
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --quiet) quiet=1; shift ;;
+            --dest)  dest="$2"; shift 2 ;;
+            *) shift ;;
+        esac
+    done
+    [[ -z "$dest" ]] && dest=$(command -v claude-deploy 2>/dev/null || realpath "$0")
+
+    local repo_dir="${CLAUDE_DEPLOY_REPO:-$HOME/.config/claude-deploy/repo}"
+    local url="https://github.com/fluid-notion-labs/claude-deploy-skill.git"
+    local git_q=(); [[ "$quiet" == "1" ]] && git_q=(-q)
+
+    if [[ -d "$repo_dir/.git" ]]; then
+        [[ "$quiet" == "0" ]] && echo "Pulling latest from main..." >&2
+        git -C "$repo_dir" pull --ff-only origin main "${git_q[@]}"
+    else
+        [[ "$quiet" == "0" ]] && echo "Cloning claude-deploy-skill..." >&2
+        mkdir -p "$(dirname "$repo_dir")"
+        git clone "${git_q[@]}" "$url" "$repo_dir"
+    fi
+
+    local tmp
+    tmp=$(mktemp)
+    cp "$repo_dir/claude-deploy" "$tmp"
+    if bash -n "$tmp" 2>/dev/null; then
+        mv "$tmp" "$dest"
+        chmod +x "$dest"
+        [[ "$quiet" == "0" ]] && echo "✓ Updated to $(git -C "$repo_dir" rev-parse --short HEAD)" >&2
+        return 0
+    else
+        [[ "$quiet" == "1" ]] && echo "⚠️  Auto-update failed syntax check, continuing with current version" >&2 \
+                               || echo "✗ Updated file has syntax errors, aborting" >&2
+        rm -f "$tmp"
+        return 1
+    fi
+}
 
 usage() {
     cat >&2 << 'USAGE'
@@ -428,29 +462,9 @@ cmd_open() {
 }
 
 cmd_update() {
-    DEST=$(command -v claude-deploy 2>/dev/null || realpath "$0")
-    REPO_DIR="${CLAUDE_DEPLOY_REPO:-$HOME/.config/claude-deploy/repo}"
-    URL="https://github.com/fluid-notion-labs/claude-deploy-skill.git"
-
-    if [[ -d "$REPO_DIR/.git" ]]; then
-        echo "Pulling latest from main..." >&2
-        git -C "$REPO_DIR" pull --ff-only origin main
-    else
-        echo "Cloning claude-deploy-skill..." >&2
-        mkdir -p "$(dirname "$REPO_DIR")"
-        git clone "$URL" "$REPO_DIR"
-    fi
-
-    TMP=$(mktemp)
-    cp "$REPO_DIR/claude-deploy" "$TMP"
-    if ! bash -n "$TMP" 2>/dev/null; then
-        echo "✗ Updated file has syntax errors, aborting" >&2
-        rm -f "$TMP"
-        exit 1
-    fi
-    mv "$TMP" "$DEST"
-    chmod +x "$DEST"
-    echo "✓ Updated to $(git -C "$REPO_DIR" rev-parse --short HEAD)" >&2
+    local dest
+    dest=$(command -v claude-deploy 2>/dev/null || realpath "$0")
+    _do_update --dest "$dest" || exit 1
 }
 
 cmd_watch() {
