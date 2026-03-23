@@ -445,6 +445,15 @@ cmd_handover() {
     fi
     rm -rf "$SKILL_DIR"
 
+    # Infer skill repo — try org-specific first, fall back to fluid-notion-labs
+    local REPO_OWNER
+    REPO_OWNER=$(echo "$REPO" | cut -d'/' -f1)
+    local SKILL_BOOTSTRAP_REPO="fluid-notion-labs/claude-deploy-skill"
+    # If org has its own skill repo (checked via repos list), prefer it
+    if echo "$REPOS_JSON" | grep -q "^${REPO_OWNER}/claude-deploy-skill$"; then
+        SKILL_BOOTSTRAP_REPO="${REPO_OWNER}/claude-deploy-skill"
+    fi
+
     # Build repo section
     if [[ -n "$REPO" ]]; then
         REPO_SECTION="Repo: \`$REPO\`"
@@ -463,6 +472,11 @@ $REPO_SECTION
 Token (valid until $EXPIRY):
 \`\`\`
 $TOKEN
+\`\`\`
+
+Bootstrap (run this first):
+\`\`\`sh
+git clone -q https://x-access-token:$TOKEN@github.com/$SKILL_BOOTSTRAP_REPO.git /home/claude/claude-deploy-skill 2>/dev/null || true
 \`\`\`
 
 Clone and push:

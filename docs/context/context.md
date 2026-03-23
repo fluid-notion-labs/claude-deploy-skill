@@ -131,7 +131,9 @@ Tests cover: `config_file`, `parse_profile`, `load_config`, `infer_single_org`, 
 
 ## Session start
 
-At the start of every session, echo a status summary in this format (no preamble):
+At the start of every session:
+1. Run the bootstrap block from the handover blob — clones skill repo to `/home/claude/claude-deploy-skill`
+2. Echo status summary in this format (no preamble):
 
 ```
 Repo: fluid-notion-labs/claude-deploy-skill
@@ -170,5 +172,6 @@ Next up:
 - Session start echo added — Claude now outputs recent/open/next summary at handover start
 - `diff` command removed — diff is now Claude's post-commit SOP (any repo), not a script command; documented in Post-commit workflow section
 - `watch --commands` rebuilt — sentinel branch state machine: orphan `claude-deploy-sentinels` branch, `run-<main-ref>-<ts>` files, `new`→`running`→`success/failure`, captured results committed to main as clean commits, fast grep poll via `git show` without checkout
-- `container/scripts/wait-for-push.sh` added — blocking poll for remote changes, exits 0 on change / 1 on timeout; use when waiting for user push after sentinel run
+- `handover` infers owner/repo from git remote origin if run inside a git repo
+- `handover` bootstrap block added — clones `<org>/claude-deploy-skill` (falls back to `fluid-notion-labs/claude-deploy-skill`) at session start so `container/scripts/` is immediately available
 - File editing primitives researched — no new tool needed; use `str_replace` for unique matches, `sed -i`/`python3` via `bash_tool` for everything else; `create_file` only for >50% file changes; documented in `docs/research/editing.md`
