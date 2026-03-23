@@ -374,6 +374,17 @@ cmd_handover() {
     parse_profile "$@"
     REPO="${POSITIONAL[0]}"
 
+    # Infer repo from git remote if not explicitly given and we're in a git repo
+    if [[ -z "$REPO" ]] && git rev-parse --is-inside-work-tree &>/dev/null 2>&1; then
+        local remote_url
+        remote_url=$(git remote get-url origin 2>/dev/null || true)
+        if [[ -n "$remote_url" ]]; then
+            # Parse owner/repo from https or git remote URL
+            REPO=$(echo "$remote_url" | sed -E 's|.*github\.com[:/](.+/.+)\.git.*|\1|; s|.*github\.com[:/](.+/.+)|\1|')
+            echo "Inferred repo: $REPO" >&2
+        fi
+    fi
+
     # If no repo given, infer org from single configured org or require --org
     if [[ -z "$REPO" ]]; then
         if [[ "$PROFILE" == "default" ]]; then
