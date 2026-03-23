@@ -100,6 +100,11 @@ USAGE
     exit 1
 }
 
+# Parse --org flag and collect remaining positional args.
+# Sets globals: PROFILE (string), POSITIONAL (array).
+# These are intentionally global — infer_profile/infer_single_org also
+# mutate PROFILE after parse, so localising it would require restructuring
+# the call graph. Acceptable for a single-file script of this size.
 parse_profile() {
     PROFILE="default"
     POSITIONAL=()
