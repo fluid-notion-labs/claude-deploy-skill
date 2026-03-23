@@ -14,6 +14,7 @@
 claude-deploy setup    [--org <n>]                # configure App ID + ingest PEM
 claude-deploy token    <owner/repo> [--org <n>]   # get ephemeral token → clipboard
 claude-deploy handover [<owner/repo>] [--org <n>] # full session blob → clipboard (embeds context.md)
+claude-deploy diff     [<ref>]                     # render diff HTML and open in browser (default: last commit)
 claude-deploy watch                                # poll cwd repo every 5s, print new commits
 claude-deploy open     [--org <n>]                # xdg-open GitHub App install settings
 claude-deploy update                              # self-update from main branch
@@ -115,3 +116,4 @@ Next up:
 - Handover blob now embeds `docs/context/context.md` inline via git clone
 - Context workflow codified; docs restructured to `docs/context/`
 - Session start echo added — Claude now outputs recent/open/next summary at handover start
+- `diff` command added — `claude-deploy diff [<ref>]` renders diff2html standalone HTML, opens in browser; defaults to last commit
