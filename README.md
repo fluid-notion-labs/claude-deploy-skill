@@ -14,7 +14,7 @@ curl -fsSL https://raw.githubusercontent.com/fluid-notion-labs/claude-deploy-ski
 ## First Time Setup
 
 ```sh
-claude-deploy setup --profile fluid-notion-labs
+claude-deploy setup --org fluid-notion-labs
 ```
 
 Prompts for App ID and PEM path. Copies PEM to `~/.config/claude-deploy/` and saves config.
@@ -22,7 +22,7 @@ Prompts for App ID and PEM path. Copies PEM to `~/.config/claude-deploy/` and sa
 ## Every Session
 
 ```sh
-claude-deploy token <owner/repo> --profile fluid-notion-labs
+claude-deploy token <owner/repo> --org fluid-notion-labs
 ```
 
 Token printed to stdout and copied to clipboard via `wl-copy`. Paste into Claude.
@@ -30,10 +30,10 @@ Token printed to stdout and copied to clipboard via `wl-copy`. Paste into Claude
 ## Commands
 
 ```sh
-claude-deploy setup    [--profile <n>]              # configure app ID and ingest PEM
-claude-deploy token    <owner/repo> [--profile <n>] # get ephemeral token
-claude-deploy profiles                              # list configured profiles
-claude-deploy status   [--profile <n>]              # show current config
+claude-deploy setup    [--org <n>]              # configure app ID and ingest PEM
+claude-deploy token    <owner/repo> [--org <n>] # get ephemeral token
+claude-deploy profiles                          # list configured orgs
+claude-deploy status   [--org <n>]              # show current config
 ```
 
 ## Starting a Claude Session
@@ -43,7 +43,7 @@ Tell Claude at the start of each session:
 ```
 App ID: <app_id>
 Repo: <owner/repo>
-Profile: <profile>
+Org: <org>
 ```
 
 Then run `claude-deploy token` and paste the result.

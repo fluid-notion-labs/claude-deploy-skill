@@ -17,7 +17,7 @@ This repo contains the skill itself, the `claude-deploy` bash script, and setup 
 
 Run locally:
 ```sh
-claude-deploy handover <owner/repo> --org <profile>
+claude-deploy handover <owner/repo> --org <org>
 ```
 
 This generates a token, builds the full session context, and copies it to clipboard. Paste into Claude — done.
@@ -31,8 +31,8 @@ Token expires in 1 hour. Re-run `claude-deploy handover` if it expires.
 curl -fsSL https://raw.githubusercontent.com/fluid-notion-labs/claude-deploy-skill/main/claude-deploy \
   -o ~/.local/bin/claude-deploy && chmod +x ~/.local/bin/claude-deploy
 
-# Configure profile
-claude-deploy setup --profile fluid-notion-labs
+# Configure org
+claude-deploy setup --org fluid-notion-labs
 # prompts for App ID and PEM path
 ```
 
@@ -40,13 +40,13 @@ claude-deploy setup --profile fluid-notion-labs
 
 - Config dir: `~/.config/claude-deploy/`
 - Default config: `~/.config/claude-deploy/config`
-- Named profile: `~/.config/claude-deploy/config-<profile>`
+- Named org config: `~/.config/claude-deploy/config-<org>`
 - Each config contains `APP_ID` and `PEM_PATH`
 - PEM is copied into config dir on setup
 
 ## Key Details
 
-- **PEM:** stored in `~/.config/claude-deploy/` per profile
+- **PEM:** stored in `~/.config/claude-deploy/` per org
 - **GitHub App installed on:** `nhemsley` and `fluid-notion-labs`
 - **Container constraints:** no SSH, no persistent state between sessions — `api.github.com` is blocked by egress proxy; use `git clone/push` via HTTPS token URL instead
 - **Token is generated locally** via `claude-deploy handover` then pasted to Claude as a full context blob
@@ -69,5 +69,5 @@ claude-deploy-skill/
 
 - `fluid-notion-labs/claude-deploy-skill` — active repo ✓
 - `nhemsley/gh-pages-skill` — old repo, superseded, archive it
-- `claude-deploy setup` — run this locally with `--profile fluid-notion-labs` if not done yet
+- `claude-deploy setup` — run this locally with `--org fluid-notion-labs` if not done yet
 - fu.garden — federated jj hosting concept, sketched in `docs/dogfood.md`

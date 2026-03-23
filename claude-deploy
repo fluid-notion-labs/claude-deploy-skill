@@ -60,8 +60,7 @@ Commands:
   status   [--org <n>]             Show current config
 
 Options:
-  --org <n>     Use named org/profile (default: "default")
-  --profile <n> Alias for --org
+  --org <n>     Use named org (default: "default")
 USAGE
     exit 1
 }
@@ -71,7 +70,7 @@ parse_profile() {
     POSITIONAL=()
     while [[ $# -gt 0 ]]; do
         case $1 in
-            --profile|--org)
+            --org)
                 PROFILE="$2"
                 shift 2
                 ;;
@@ -94,7 +93,7 @@ config_file() {
 load_config() {
     local file=$(config_file "$1")
     if [[ ! -f "$file" ]]; then
-        echo "Error: no config for profile '$1' — run: claude-deploy setup --profile $1" >&2
+        echo "Error: no config for org '$1' — run: claude-deploy setup --org $1" >&2
         exit 1
     fi
     source "$file"
@@ -105,7 +104,7 @@ cmd_setup() {
     local file=$(config_file "$PROFILE")
     mkdir -p "$CONFIG_DIR"
 
-    echo "Setting up profile: $PROFILE"
+    echo "Setting up org: $PROFILE"
 
     read -p "GitHub App ID: " APP_ID
     if [[ -z "$APP_ID" ]]; then
@@ -125,7 +124,7 @@ cmd_setup() {
     chmod 600 "$PEM_DEST"
     echo "PEM copied to $PEM_DEST"
 
-    # Auto-update prompt only for default profile (global setting)
+    # Auto-update prompt only for default org (global setting)
     local AUTO_UPDATE=0
     if [[ "$PROFILE" == "default" ]]; then
         read -p "Enable auto-update on each run? [y/N] " AU
@@ -138,7 +137,7 @@ PEM_PATH=$PEM_DEST
 AUTO_UPDATE=$AUTO_UPDATE
 CONF
     chmod 600 "$file"
-    echo "✓ Profile '$PROFILE' saved to $file"
+    echo "✓ Org '$PROFILE' saved to $file"
 }
 
 cmd_config() {
@@ -181,7 +180,7 @@ infer_profile() {
         local owner_cfg=$(config_file "$owner")
         if [[ -f "$owner_cfg" ]]; then
             PROFILE="$owner"
-            echo "Using profile '$PROFILE' (inferred from repo owner)" >&2
+            echo "Using org '$PROFILE' (inferred from repo owner)" >&2
         else
             local profiles=("$CONFIG_DIR"/config-*)
             profiles=($(for f in "${profiles[@]}"; do [[ -f "$f" ]] && echo "$f"; done))
@@ -259,7 +258,7 @@ PYEOF
 }
 
 cmd_profiles() {
-    echo "Configured profiles:"
+    echo "Configured orgs:"
     for f in "$CONFIG_DIR"/config "$CONFIG_DIR"/config-*; do
         [[ -f "$f" ]] || continue
         name=$(basename "$f")
@@ -283,7 +282,7 @@ cmd_handover() {
     parse_profile "$@"
     REPO="${POSITIONAL[0]}"
 
-    # If no repo given, infer profile from single profile or require --org
+    # If no repo given, infer org from single configured org or require --org
     if [[ -z "$REPO" ]]; then
         if [[ "$PROFILE" == "default" ]]; then
             local profiles=("$CONFIG_DIR"/config-*)
