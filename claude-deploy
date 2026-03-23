@@ -201,6 +201,21 @@ infer_profile() {
     fi
 }
 
+# Copy content to clipboard via wl-copy, or print to stdout as fallback.
+# Usage: copy_or_print <content> <label> [--always-print]
+#   --always-print: also print to stdout even when wl-copy succeeds
+copy_or_print() {
+    local content="$1" label="$2" always_print="${3:-}"
+    if command -v wl-copy &>/dev/null; then
+        echo -n "$content" | wl-copy
+        echo "📋 $label" >&2
+        [[ "$always_print" == "--always-print" ]] && echo "$content"
+    else
+        echo "⚠️  wl-copy not found — copy below manually" >&2
+        echo "$content"
+    fi
+}
+
 # Get installation ID for a repo. Requires $JWT to be set.
 # Prints the install ID to stdout; exits with error message on failure.
 get_install_id() {
@@ -267,14 +282,7 @@ cmd_token() {
     EXPIRY=$(date -d '+1 hour' '+%H:%M %Z')
     echo "Token valid until: $EXPIRY" >&2
 
-    if command -v wl-copy &> /dev/null; then
-        echo -n "$TOKEN" | wl-copy
-        echo "📋 Token copied to clipboard (valid until $EXPIRY)" >&2
-    else
-        echo "⚠️  wl-copy not found — copy the token below manually" >&2
-    fi
-
-    echo "$TOKEN"
+    copy_or_print "$TOKEN" "Token copied to clipboard (valid until $EXPIRY)" --always-print
 }
 
 cmd_profiles() {
@@ -381,13 +389,7 @@ Skill: https://github.com/fluid-notion-labs/claude-deploy-skill
 HANDOVER
 )
 
-    if command -v wl-copy &> /dev/null; then
-        echo -n "$BLOB" | wl-copy
-        echo "📋 Handover copied to clipboard (token valid until $EXPIRY)" >&2
-    else
-        echo "⚠️  wl-copy not found" >&2
-        echo "$BLOB"
-    fi
+    copy_or_print "$BLOB" "Handover copied to clipboard (token valid until $EXPIRY)"
 }
 
 cmd_open() {
