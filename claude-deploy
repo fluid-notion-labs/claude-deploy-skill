@@ -497,27 +497,6 @@ cmd_update() {
     _do_update --dest "$dest" || exit 1
 }
 
-cmd_diff() {
-    # Usage: claude-deploy diff [<ref>]
-    # Default: diff HEAD~1..HEAD (last commit). Pass a ref like HEAD~3 or a SHA for older diffs.
-    local ref="${1:-HEAD~1}"
-
-    if [[ ! -d ".git" ]]; then
-        echo "Error: not a git repo: $PWD" >&2
-        exit 1
-    fi
-
-    if ! command -v diff2html &>/dev/null; then
-        echo "Error: diff2html-cli not found. Install with: npm install -g diff2html-cli" >&2
-        exit 1
-    fi
-
-    local out="/tmp/claude-deploy-diff-$(git rev-parse --short HEAD).html"
-    git diff "${ref}..HEAD" | diff2html -i stdin -o stdout --su hidden -t "$(git log --oneline -1)" > "$out"
-
-    echo "Diff: $out" >&2
-    xdg-open "$out" 2>/dev/null || echo "Open in browser: file://$out"
-}
 
 cmd_watch() {
     REPO_DIR="${PWD}"
@@ -553,7 +532,7 @@ case "$COMMAND" in
     handover) cmd_handover "$@" ;;
     open)     cmd_open "$@" ;;
     update)   cmd_update ;;
-    diff)     cmd_diff "$@" ;;
+
     watch)    cmd_watch ;;
     config)   parse_profile "$@"; cmd_config ;;
     profiles) cmd_profiles ;;

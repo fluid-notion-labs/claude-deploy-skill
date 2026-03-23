@@ -14,7 +14,6 @@
 claude-deploy setup    [--org <n>]                # configure App ID + ingest PEM
 claude-deploy token    <owner/repo> [--org <n>]   # get ephemeral token → clipboard
 claude-deploy handover [<owner/repo>] [--org <n>] # full session blob → clipboard (embeds context.md)
-claude-deploy diff     [<ref>]                     # render diff HTML and open in browser (default: last commit)
 claude-deploy watch                                # poll cwd repo every 5s, print new commits
 claude-deploy open     [--org <n>]                # xdg-open GitHub App install settings
 claude-deploy update                              # self-update from main branch
@@ -62,7 +61,18 @@ Key helpers (all require `load_config` to have run first):
 - Skipped for `update`, `watch`, `config` commands
 - Syntax-check before binary replace prevents corrupt installs
 
-## Testing
+## Post-commit workflow
+
+After every `git push`, Claude generates a diff HTML and presents it inline in the chat using `present_files`. This applies to **any repo** Claude is working in via claude-deploy — it is not a script command, it is Claude's standard operating procedure.
+
+```sh
+git diff HEAD~1 | diff2html -i stdin -o stdout --cs dark -s side \
+  | sed 's|<title>.*</title>|<title>diff</title>|; s|<h1>.*</h1>||' \
+  > /tmp/last-diff.html
+# then: present_files ["/tmp/last-diff.html"]
+```
+
+Requires `diff2html-cli`: `npm install -g diff2html-cli`
 
 ```sh
 bats tests/unit.bats   # 49 tests — pure unit, no network/clipboard required
@@ -116,4 +126,4 @@ Next up:
 - Handover blob now embeds `docs/context/context.md` inline via git clone
 - Context workflow codified; docs restructured to `docs/context/`
 - Session start echo added — Claude now outputs recent/open/next summary at handover start
-- `diff` command added — `claude-deploy diff [<ref>]` renders diff2html standalone HTML, opens in browser; defaults to last commit
+- `diff` command removed — diff is now Claude's post-commit SOP (any repo), not a script command; documented in Post-commit workflow section
