@@ -422,13 +422,25 @@ cmd_handover() {
 
     EXPIRY=$(date -d '+1 hour' '+%H:%M %Z' 2>/dev/null || date -v+1H '+%H:%M %Z')
 
-    # Build repo list for blob
+    # Fetch context.md from the skill repo using the token
+    SKILL_REPO="fluid-notion-labs/claude-deploy-skill"
+    SKILL_DIR=$(mktemp -d)
+    echo "Fetching context..." >&2
+    git clone -q "https://x-access-token:$TOKEN@github.com/$SKILL_REPO.git" "$SKILL_DIR" 2>/dev/null
+    if [[ -f "$SKILL_DIR/docs/context/context.md" ]]; then
+        CONTEXT=$(cat "$SKILL_DIR/docs/context/context.md")
+    else
+        CONTEXT="(context.md not found in $SKILL_REPO)"
+    fi
+    rm -rf "$SKILL_DIR"
+
+    # Build repo section
     if [[ -n "$REPO" ]]; then
         REPO_SECTION="Repo: \`$REPO\`"
         SESSION_TITLE="$REPO"
     else
         REPO_LIST=$(echo "$REPOS_JSON" | sed 's/^/- /')
-        REPO_SECTION="Repos (ask user which to work on):
+        REPO_SECTION="Repos — ask user which to clone:
 $REPO_LIST"
         SESSION_TITLE="$PROFILE"
     fi
@@ -444,12 +456,19 @@ $TOKEN
 
 Clone and push:
 \`\`\`sh
-git clone https://x-access-token:$TOKEN@github.com/<owner>/<repo>.git
+git clone https://x-access-token:$TOKEN@github.com/<owner>/<repo>.git /home/claude/<repo>
+cd /home/claude/<repo>
+git config user.email "claude@anthropic.com" && git config user.name "Claude"
 git remote set-url origin https://x-access-token:$TOKEN@github.com/<owner>/<repo>.git
-git push origin main
+git add -A && git commit -m "<message>" && git push origin main
 \`\`\`
 
-Skill: https://github.com/fluid-notion-labs/claude-deploy-skill
+Constraints: no SSH, api.github.com blocked, raw.githubusercontent.com blocked, token expires in 1hr.
+On 401/403: tell user to run \`claude-deploy handover\` and paste new blob.
+
+---
+
+$CONTEXT
 HANDOVER
 )
 
