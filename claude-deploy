@@ -442,20 +442,19 @@ cmd_update() {
 }
 
 cmd_watch() {
-    REPO_DIR="${CLAUDE_DEPLOY_REPO:-$HOME/.config/claude-deploy/repo}"
-    URL="https://github.com/fluid-notion-labs/claude-deploy-skill.git"
+    REPO_DIR="${PWD}"
     INTERVAL=5
 
     if [[ ! -d "$REPO_DIR/.git" ]]; then
-        echo "Cloning claude-deploy-skill..." >&2
-        mkdir -p "$(dirname "$REPO_DIR")"
-        git clone -q "$URL" "$REPO_DIR"
+        echo "Error: not a git repo: $REPO_DIR" >&2
+        exit 1
     fi
 
-    echo "Watching $URL (every ${INTERVAL}s) — Ctrl-C to stop"
+    BRANCH=$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD)
+    echo "Watching $REPO_DIR [$BRANCH] (every ${INTERVAL}s) — Ctrl-C to stop"
     while true; do
         BEFORE=$(git -C "$REPO_DIR" rev-parse HEAD)
-        git -C "$REPO_DIR" pull --ff-only origin main -q 2>/dev/null
+        git -C "$REPO_DIR" pull --ff-only origin "$BRANCH" -q 2>/dev/null
         AFTER=$(git -C "$REPO_DIR" rev-parse HEAD)
         TS=$(date '+%H:%M:%S')
         if [[ "$BEFORE" != "$AFTER" ]]; then
