@@ -193,6 +193,34 @@ infer_profile() {
     fi
 }
 
+# Get installation ID for a repo. Requires $JWT to be set.
+# Prints the install ID to stdout; exits with error message on failure.
+get_install_id() {
+    local repo="$1"
+    local install
+    set +e
+    install=$(gh api "/repos/$repo/installation" \
+        --header "Authorization: Bearer $JWT" \
+        --header "Accept: application/vnd.github+json" 2>&1)
+    local rc=$?
+    set -e
+    if [[ $rc -ne 0 ]]; then
+        local owner=$(echo "$repo" | cut -d'/' -f1)
+        echo "Error: app not installed on '$repo'" >&2
+        echo "Grant access at:" >&2
+        echo "  https://github.com/organizations/$owner/settings/installations" >&2
+        exit 1
+    fi
+    local id
+    id=$(echo "$install" | jq -r '.id')
+    if [[ "$id" == "null" || -z "$id" ]]; then
+        echo "Error: app not installed on '$repo'" >&2
+        echo "$install" | jq . >&2
+        exit 1
+    fi
+    echo "$id"
+}
+
 # Requires $PEM_PATH and $APP_ID to be set (via load_config)
 generate_jwt() {
     uvx --with pyjwt --with cryptography python3 - << PYEOF
@@ -219,28 +247,7 @@ cmd_token() {
 
     echo "JWT generated, looking up installation..." >&2
 
-    set +e
-    INSTALL=$(gh api "/repos/$REPO/installation" \
-        --header "Authorization: Bearer $JWT" \
-        --header "Accept: application/vnd.github+json" 2>&1)
-    GH_EXIT=$?
-    set -e
-    if [[ $GH_EXIT -ne 0 ]]; then
-        OWNER=$(echo "$REPO" | cut -d'/' -f1)
-        echo "Error: app not installed on '$REPO'" >&2
-        echo "Grant access at:" >&2
-        echo "  https://github.com/organizations/$OWNER/settings/installations" >&2
-        exit 1
-    fi
-
-    INSTALL_ID=$(echo "$INSTALL" | jq -r '.id')
-
-    if [[ "$INSTALL_ID" == "null" || -z "$INSTALL_ID" ]]; then
-        echo "Error: app not installed on $REPO" >&2
-        echo "$INSTALL" | jq . >&2
-        exit 1
-    fi
-
+    INSTALL_ID=$(get_install_id "$REPO")
     echo "Installation ID: $INSTALL_ID" >&2
 
     TOKEN=$(gh api "/app/installations/$INSTALL_ID/access_tokens" \
@@ -312,31 +319,17 @@ cmd_handover() {
 
     # Get installation ID — use repo if given, else org-level lookup
     if [[ -n "$REPO" ]]; then
-        set +e
-        INSTALL=$(gh api "/repos/$REPO/installation" \
-            --header "Authorization: Bearer $JWT" \
-            --header "Accept: application/vnd.github+json" 2>&1)
-        GH_EXIT=$?
-        set -e
-        if [[ $GH_EXIT -ne 0 ]]; then
-            OWNER=$(echo "$REPO" | cut -d'/' -f1)
-            echo "Error: app not installed on '$REPO'" >&2
-            echo "Grant access at:" >&2
-            echo "  https://github.com/organizations/$OWNER/settings/installations" >&2
-            exit 1
-        fi
+        INSTALL_ID=$(get_install_id "$REPO")
     else
         INSTALL=$(gh api "/app/installations" \
             --header "Authorization: Bearer $JWT" \
             --header "Accept: application/vnd.github+json" \
             | jq "[.[] | select(.account.login == \"$PROFILE\")][0]")
-    fi
-
-    INSTALL_ID=$(echo "$INSTALL" | jq -r '.id')
-
-    if [[ "$INSTALL_ID" == "null" || -z "$INSTALL_ID" ]]; then
-        echo "Error: app not installed on '$PROFILE'" >&2
-        exit 1
+        INSTALL_ID=$(echo "$INSTALL" | jq -r '.id')
+        if [[ "$INSTALL_ID" == "null" || -z "$INSTALL_ID" ]]; then
+            echo "Error: app not installed on '$PROFILE'" >&2
+            exit 1
+        fi
     fi
 
     # Get token first
