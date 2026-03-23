@@ -38,9 +38,9 @@ Each config file contains `APP_ID` and `PEM_PATH`.
 
 Run locally:
 ```sh
-claude-deploy handover <owner/repo> --org <org>
+claude-deploy token <owner/repo> --org <org>
 ```
-Paste the blob into Claude. Token expires in 1hr — re-run if it expires.
+This prints the token. For the full session blob (token + clone instructions), use `handover` instead. Paste into Claude. Token expires in 1hr — re-run if it expires.
 
 ## Container constraints
 
