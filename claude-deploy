@@ -52,7 +52,7 @@ Usage: claude-deploy <command> [options]
 Commands:
   setup    [--org <n>]              Configure app ID and ingest PEM
   token    <owner/repo> [--org <n>] Get ephemeral token (copies to clipboard)
-  handover [<owner/repo>] [--org <n>] Generate session blob → wl-copy; lists all repos if no repo given
+  handover [<owner/repo>] [--org <n>] Generate session blob → clipboard; lists all repos if no repo given
   open     [--org <n>]             Open GitHub App settings to add repos
   update                            Overwrite this script from main branch
   watch                             Poll repo every 5s, print new commits
@@ -201,17 +201,33 @@ infer_profile() {
     fi
 }
 
-# Copy content to clipboard via wl-copy, or print to stdout as fallback.
-# Usage: copy_or_print <content> <label> [--always-print]
-#   --always-print: also print to stdout even when wl-copy succeeds
-copy_or_print() {
-    local content="$1" label="$2" always_print="${3:-}"
+# Copy content to clipboard using the best available tool.
+# Tries: wl-copy (Wayland), xclip (X11), xsel (X11).
+# Exits with an error message if none are found.
+clipboard_copy() {
+    local content="$1"
     if command -v wl-copy &>/dev/null; then
         echo -n "$content" | wl-copy
+    elif command -v xclip &>/dev/null; then
+        echo -n "$content" | xclip -selection clipboard
+    elif command -v xsel &>/dev/null; then
+        echo -n "$content" | xsel --clipboard --input
+    else
+        echo "⚠️  No clipboard tool found (tried: wl-copy, xclip, xsel)" >&2
+        echo "    Install one: wl-copy (Wayland) or xclip/xsel (X11)" >&2
+        return 1
+    fi
+}
+
+# Copy content to clipboard, or print to stdout as fallback.
+# Usage: copy_or_print <content> <label> [--always-print]
+#   --always-print: also print to stdout even when clipboard copy succeeds
+copy_or_print() {
+    local content="$1" label="$2" always_print="${3:-}"
+    if clipboard_copy "$content"; then
         echo "📋 $label" >&2
         [[ "$always_print" == "--always-print" ]] && echo "$content"
     else
-        echo "⚠️  wl-copy not found — copy below manually" >&2
         echo "$content"
     fi
 }
