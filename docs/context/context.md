@@ -98,8 +98,12 @@ git diff HEAD~1 | diff2html -i stdin -o stdout --cs dark -s line \
 
 Requires `diff2html-cli`: `npm install -g diff2html-cli`
 
+When waiting for the user to push (e.g. after a sentinel run), Claude can block using:
+
 ```sh
-bats tests/unit.bats   # 49 tests — pure unit, no network/clipboard required
+bash /home/claude/claude-deploy-skill/scripts/wait-for-push.sh <repo_dir> [timeout_seconds]
+# exits 0 on change, 1 on timeout (default 60s, interval 5s)
+# fetches origin, pulls on change, prints elapsed ticks
 ```
 
 Tests cover: `config_file`, `parse_profile`, `load_config`, `infer_single_org`, `infer_profile`, combined infer flows, `clipboard_copy` error path, `copy_or_print`, `cmd_config`, `cmd_open`, `cmd_status`, `cmd_profiles`.
@@ -152,4 +156,5 @@ Next up:
 - Session start echo added — Claude now outputs recent/open/next summary at handover start
 - `diff` command removed — diff is now Claude's post-commit SOP (any repo), not a script command; documented in Post-commit workflow section
 - `watch --commands` built — sentinel workflow: Claude commits `.claude-deploy-run`, watch runs it, archives to `.claude-deploy-sentinels/run-<parent_hash>`, amends commit with results, force-pushes
+- `scripts/wait-for-push.sh` added — blocking poll for remote changes, exits 0 on change / 1 on timeout; use when waiting for user push after sentinel run
 - File editing primitives researched — no new tool needed; use `str_replace` for unique matches, `sed -i`/`python3` via `bash_tool` for everything else; `create_file` only for >50% file changes; documented in `docs/research/editing.md`
