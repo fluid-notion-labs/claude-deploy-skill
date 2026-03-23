@@ -324,3 +324,118 @@ run_sourced() {
     [[ "$output" =~ "exists" ]]
 }
 # (marker — not used, just EOF test)
+
+# ── infer: combined parse_profile + infer_profile flows ──────────────────────
+# These test the interaction between the three functions as callers like
+# cmd_token use them — parse first, then infer.
+
+@test "infer: explicit --org beats owner match" {
+    make_config "acme"
+    make_config "other"
+    parse_profile acme/repo --org other
+    infer_profile "${POSITIONAL[0]}"
+    # owner "acme" has a config, but --org other was explicit
+    [ "$PROFILE" = "other" ]
+}
+
+@test "infer: explicit --org beats single-org fallback" {
+    make_config "acme"
+    parse_profile some/repo --org acme
+    infer_profile "${POSITIONAL[0]}"
+    [ "$PROFILE" = "acme" ]
+}
+
+@test "infer: owner match beats single-org fallback" {
+    make_config "acme"
+    make_config "widgets"
+    parse_profile acme/repo
+    infer_profile "${POSITIONAL[0]}"
+    # two orgs configured so single-org won't fire, but owner match should
+    [ "$PROFILE" = "acme" ]
+}
+
+@test "infer: no match and multiple orgs -> PROFILE stays default" {
+    make_config "acme"
+    make_config "widgets"
+    parse_profile unknown/repo
+    infer_profile "${POSITIONAL[0]}"
+    [ "$PROFILE" = "default" ]
+}
+
+@test "infer: no match and single org -> infer_single_org fires" {
+    make_config "acme"
+    parse_profile unknown/repo
+    infer_profile "${POSITIONAL[0]}"
+    [ "$PROFILE" = "acme" ]
+}
+
+@test "infer: handover no-repo path uses infer_single_org directly" {
+    make_config "acme"
+    # Simulate what cmd_handover does when no repo given
+    parse_profile   # no args
+    [ "$PROFILE" = "default" ]
+    infer_single_org
+    [ "$PROFILE" = "acme" ]
+}
+
+@test "infer: handover no-repo with multiple orgs fails infer_single_org" {
+    make_config "acme"
+    make_config "widgets"
+    parse_profile
+    run infer_single_org
+    [ "$status" -eq 1 ]
+    [ "$PROFILE" = "default" ]
+}
+
+# ── cmd_profiles ──────────────────────────────────────────────────────────────
+
+@test "cmd_profiles: no configs -> only header" {
+    run run_sourced "cmd_profiles"
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Configured orgs" ]]
+    # No detail lines
+    [[ ! "$output" =~ "App ID" ]]
+}
+
+@test "cmd_profiles: default profile listed as 'default'" {
+    make_config "default" "org" "11111"
+    run run_sourced "cmd_profiles"
+    [[ "$output" =~ "default" ]]
+    [[ "$output" =~ "11111" ]]
+}
+
+@test "cmd_profiles: named profile listed correctly" {
+    make_config "acme" "org" "22222"
+    run run_sourced "cmd_profiles"
+    [[ "$output" =~ "acme" ]]
+    [[ "$output" =~ "22222" ]]
+}
+
+@test "cmd_profiles: shows account type for each profile" {
+    make_config "acme" "org" "11111"
+    make_config "nick" "user" "22222"
+    run run_sourced "cmd_profiles"
+    [[ "$output" =~ "org" ]]
+    [[ "$output" =~ "user" ]]
+}
+
+@test "cmd_profiles: multiple profiles all listed" {
+    make_config "acme" "org" "11111"
+    make_config "widgets" "org" "22222"
+    run run_sourced "cmd_profiles"
+    [[ "$output" =~ "acme" ]]
+    [[ "$output" =~ "widgets" ]]
+}
+
+@test "cmd_profiles: account type defaults to org when missing from config" {
+    # Write a legacy config without ACCOUNT_TYPE
+    cat > "$CONFIG_DIR/config-legacy" << EOF
+APP_ID=99999
+PEM_PATH=$CONFIG_DIR/private-key-legacy.pem
+AUTO_UPDATE=0
+EOF
+    touch "$CONFIG_DIR/private-key-legacy.pem"
+    run run_sourced "cmd_profiles"
+    [[ "$output" =~ "legacy" ]]
+    [[ "$output" =~ "org" ]]
+}
