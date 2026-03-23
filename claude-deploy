@@ -193,6 +193,16 @@ infer_profile() {
     fi
 }
 
+# Requires $PEM_PATH and $APP_ID to be set (via load_config)
+generate_jwt() {
+    uvx --with pyjwt --with cryptography python3 - << PYEOF
+import jwt, time
+pem = open("$PEM_PATH").read()
+now = int(time.time())
+print(jwt.encode({"iat": now - 60, "exp": now + 600, "iss": "$APP_ID"}, pem, algorithm="RS256"))
+PYEOF
+}
+
 cmd_token() {
     parse_profile "$@"
     REPO="${POSITIONAL[0]}"
@@ -205,13 +215,7 @@ cmd_token() {
     infer_profile "$REPO"
     load_config "$PROFILE"
 
-    JWT=$(uvx --with pyjwt --with cryptography python3 - << PYEOF
-import jwt, time
-pem = open("$PEM_PATH").read()
-now = int(time.time())
-print(jwt.encode({"iat": now - 60, "exp": now + 600, "iss": "$APP_ID"}, pem, algorithm="RS256"))
-PYEOF
-)
+    JWT=$(generate_jwt)
 
     echo "JWT generated, looking up installation..." >&2
 
@@ -304,13 +308,7 @@ cmd_handover() {
 
     echo "Generating token..." >&2
 
-    JWT=$(uvx --with pyjwt --with cryptography python3 - << PYEOF
-import jwt, time
-pem = open("$PEM_PATH").read()
-now = int(time.time())
-print(jwt.encode({"iat": now - 60, "exp": now + 600, "iss": "$APP_ID"}, pem, algorithm="RS256"))
-PYEOF
-)
+    JWT=$(generate_jwt)
 
     # Get installation ID — use repo if given, else org-level lookup
     if [[ -n "$REPO" ]]; then
