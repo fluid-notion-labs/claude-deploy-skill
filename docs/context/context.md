@@ -63,29 +63,43 @@ Key helpers (all require `load_config` to have run first):
 
 ## Sentinel run workflow
 
-Claude can request your machine run commands by committing a `.claude-deploy-run` file. `claude-deploy watch --commands` detects it, runs it, archives it, and amends the commit with results.
+Claude creates sentinel files on the `claude-deploy-sentinels` orphan branch (never pollutes main). Each sentinel is named `run-<main-ref>-<timestamp>` and tracks a state machine: `new` → `running` → `success`/`failure`.
 
-**Sentinel format** (`.claude-deploy-run`):
+**Sentinel file format:**
 ```
-capture: path/to/results/dir
-msg: optional override commit message
+status: new
+main-ref: a4f3c2d
+created: 2026-03-23T17:48:05
+capture: assets/images
+msg: fetched moon tarot images
 
-#!/usr/bin/env bash
-./scripts/do-something.sh
+./scripts/fetch-images.sh --output assets/images
 ```
 
-Header keys (`capture:`, `msg:`) are optional. Blank line separates header from script body.
+**State machine:**
+- `new` — Claude created, pushed to `claude-deploy-sentinels`
+- `running` — watch picked it up, script executing
+- `success` / `failure` — script exited 0 / non-0; log appended; `result-ref` added if capture landed on main
 
-**Flow:**
-1. Claude commits work + `.claude-deploy-run` + pushes
-2. `watch --commands` detects sentinel in new commit
-3. Runs the script from repo root
-4. Archives sentinel to `.claude-deploy-sentinels/run-<parent_hash>` (with run log appended)
-5. Stages: archive + deleted sentinel + capture dir (if specified)
-6. `git commit --amend --no-edit` + `git push --force-with-lease`
-7. You notify Claude — Claude pulls amended commit
+**watch --commands flow:**
+1. `git fetch origin claude-deploy-sentinels` — fast, no checkout
+2. `git ls-tree` + `git show` to grep `status: new` — no full pull until needed
+3. Pull sentinel branch, mark `running`, commit+push
+4. Checkout main, run script, commit captured files to main
+5. Checkout sentinel branch, update status, append log, commit+push
+6. Return to main
 
-Parent hash is stable across amend — ties archive to original commit context.
+**Creating a sentinel (Claude does this):**
+```
+status: new
+main-ref: $(git rev-parse HEAD)
+created: $(date -u +%Y-%m-%dT%H:%M:%S)
+capture: path/to/results
+msg: commit message for results on main
+
+script body here
+```
+Push to `claude-deploy-sentinels` branch. Watch picks it up within poll interval.
 
 After every `git push`, Claude generates a diff HTML and presents it inline in the chat using `present_files`. This applies to **any repo** Claude is working in via claude-deploy — it is not a script command, it is Claude's standard operating procedure.
 
@@ -155,6 +169,6 @@ Next up:
 - Context workflow codified; docs restructured to `docs/context/`
 - Session start echo added — Claude now outputs recent/open/next summary at handover start
 - `diff` command removed — diff is now Claude's post-commit SOP (any repo), not a script command; documented in Post-commit workflow section
-- `watch --commands` built — sentinel workflow: Claude commits `.claude-deploy-run`, watch runs it, archives to `.claude-deploy-sentinels/run-<parent_hash>`, amends commit with results, force-pushes
+- `watch --commands` rebuilt — sentinel branch state machine: orphan `claude-deploy-sentinels` branch, `run-<main-ref>-<ts>` files, `new`→`running`→`success/failure`, captured results committed to main as clean commits, fast grep poll via `git show` without checkout
 - `container/scripts/wait-for-push.sh` added — blocking poll for remote changes, exits 0 on change / 1 on timeout; use when waiting for user push after sentinel run
 - File editing primitives researched — no new tool needed; use `str_replace` for unique matches, `sed -i`/`python3` via `bash_tool` for everything else; `create_file` only for >50% file changes; documented in `docs/research/editing.md`
