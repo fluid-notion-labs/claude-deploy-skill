@@ -14,7 +14,7 @@
 claude-deploy setup    [--org <n>]                # configure App ID + ingest PEM
 claude-deploy token    <owner/repo> [--org <n>]   # get ephemeral token → clipboard
 claude-deploy handover [<owner/repo>] [--org <n>] # full session blob → clipboard (embeds context.md)
-claude-deploy watch                                # poll cwd repo every 5s, print new commits
+claude-deploy watch    [--commands]           # poll cwd repo every 5s; --commands runs .claude-deploy-run sentinels
 claude-deploy open     [--org <n>]                # xdg-open GitHub App install settings
 claude-deploy update                              # self-update from main branch
 claude-deploy config   auto-update [on|off]       # toggle auto-update
@@ -61,7 +61,31 @@ Key helpers (all require `load_config` to have run first):
 - Skipped for `update`, `watch`, `config` commands
 - Syntax-check before binary replace prevents corrupt installs
 
-## Post-commit workflow
+## Sentinel run workflow
+
+Claude can request your machine run commands by committing a `.claude-deploy-run` file. `claude-deploy watch --commands` detects it, runs it, archives it, and amends the commit with results.
+
+**Sentinel format** (`.claude-deploy-run`):
+```
+capture: path/to/results/dir
+msg: optional override commit message
+
+#!/usr/bin/env bash
+./scripts/do-something.sh
+```
+
+Header keys (`capture:`, `msg:`) are optional. Blank line separates header from script body.
+
+**Flow:**
+1. Claude commits work + `.claude-deploy-run` + pushes
+2. `watch --commands` detects sentinel in new commit
+3. Runs the script from repo root
+4. Archives sentinel to `.claude-deploy-sentinels/run-<parent_hash>` (with run log appended)
+5. Stages: archive + deleted sentinel + capture dir (if specified)
+6. `git commit --amend --no-edit` + `git push --force-with-lease`
+7. You notify Claude — Claude pulls amended commit
+
+Parent hash is stable across amend — ties archive to original commit context.
 
 After every `git push`, Claude generates a diff HTML and presents it inline in the chat using `present_files`. This applies to **any repo** Claude is working in via claude-deploy — it is not a script command, it is Claude's standard operating procedure.
 
@@ -127,5 +151,5 @@ Next up:
 - Context workflow codified; docs restructured to `docs/context/`
 - Session start echo added — Claude now outputs recent/open/next summary at handover start
 - `diff` command removed — diff is now Claude's post-commit SOP (any repo), not a script command; documented in Post-commit workflow section
-- Post-commit diff switched to `-s line` (line-by-line) — no redundant empty left panel for pure additions
+- `watch --commands` built — sentinel workflow: Claude commits `.claude-deploy-run`, watch runs it, archives to `.claude-deploy-sentinels/run-<parent_hash>`, amends commit with results, force-pushes
 - File editing primitives researched — no new tool needed; use `str_replace` for unique matches, `sed -i`/`python3` via `bash_tool` for everything else; `create_file` only for >50% file changes; documented in `docs/research/editing.md`

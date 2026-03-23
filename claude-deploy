@@ -90,8 +90,7 @@ Commands:
   handover [<owner/repo>] [--org <n>] Generate session blob → clipboard; lists all repos if no repo given
   open     [--org <n>]             Open GitHub App settings to add repos
   update                            Overwrite this script from main branch
-  diff     [<ref>]                  Render diff to HTML and open in browser (default: last commit)
-  watch                             Poll repo every 5s, print new commits
+  watch    [--commands]              Poll repo every 5s, print new commits; --commands also runs .claude-deploy-run sentinels
   config   auto-update [on|off]    Toggle auto-update on each run
   profiles                          List configured profiles
   status   [--org <n>]             Show current config
@@ -498,29 +497,144 @@ cmd_update() {
 }
 
 
-cmd_watch() {
-    REPO_DIR="${PWD}"
-    INTERVAL=5
+_watch_run_sentinel() {
+    # Called when a new commit contains .claude-deploy-run
+    # Usage: _watch_run_sentinel <repo_dir> <branch>
+    local repo="$1" branch="$2"
+    local sentinel="$repo/.claude-deploy-run"
+    local sentinel_dir="$repo/.claude-deploy-sentinels"
 
-    if [[ ! -d "$REPO_DIR/.git" ]]; then
-        echo "Error: not a git repo: $REPO_DIR" >&2
+    # Grab parent hash before we amend — this is our stable reference
+    local parent_hash
+    parent_hash=$(git -C "$repo" rev-parse HEAD~1 2>/dev/null || echo "root")
+
+    local archive="$sentinel_dir/run-${parent_hash}"
+
+    echo "  → sentinel found (parent: ${parent_hash:0:12})"
+
+    # Parse sentinel: lines starting with key: value are metadata
+    # Remaining lines are the script body
+    local capture_dir="" run_msg=""
+    local script_body=""
+    local in_body=0
+
+    while IFS= read -r line; do
+        if [[ $in_body -eq 0 && "$line" =~ ^capture:[[:space:]]*(.+)$ ]]; then
+            capture_dir="${BASH_REMATCH[1]}"
+        elif [[ $in_body -eq 0 && "$line" =~ ^msg:[[:space:]]*(.+)$ ]]; then
+            run_msg="${BASH_REMATCH[1]}"
+        elif [[ $in_body -eq 0 && -z "$line" ]]; then
+            in_body=1  # blank line separates header from body
+        else
+            in_body=1
+            script_body+="$line"$'\n'
+        fi
+    done < "$sentinel"
+
+    echo "  → capture: ${capture_dir:-(none)}"
+    echo "  → running script..."
+
+    # Write script to temp file and run from repo root
+    local tmpscript
+    tmpscript=$(mktemp /tmp/claude-run-XXXXXX.sh)
+    echo "#!/usr/bin/env bash" > "$tmpscript"
+    echo "set -e" >> "$tmpscript"
+    echo "cd $(printf '%q' "$repo")" >> "$tmpscript"
+    echo "$script_body" >> "$tmpscript"
+    chmod +x "$tmpscript"
+
+    local run_log
+    run_log=$(mktemp /tmp/claude-run-log-XXXXXX.txt)
+
+    if bash "$tmpscript" 2>&1 | tee "$run_log"; then
+        echo "  → script succeeded"
+        local exit_ok=1
+    else
+        echo "  → script FAILED — see log"
+        local exit_ok=0
+    fi
+    rm -f "$tmpscript"
+
+    # Move sentinel to archive dir with parent hash
+    mkdir -p "$sentinel_dir"
+    cp "$sentinel" "$archive"
+    # Append run metadata to archive
+    {
+        echo ""
+        echo "# --- run metadata ---"
+        echo "# ran: $(date '+%Y-%m-%dT%H:%M:%S')"
+        echo "# exit: $([ "$exit_ok" = "1" ] && echo ok || echo FAILED)"
+        echo "# log:"
+        sed 's/^/# /' "$run_log"
+    } >> "$archive"
+    rm -f "$run_log"
+
+    # Remove sentinel from working tree
+    rm -f "$sentinel"
+
+    # Stage: archive, deleted sentinel, and capture dir if specified
+    git -C "$repo" add "$sentinel_dir/"
+    git -C "$repo" rm --cached "$sentinel" 2>/dev/null || true
+    if [[ -n "$capture_dir" && -d "$repo/$capture_dir" ]]; then
+        git -C "$repo" add "$repo/$capture_dir"
+        echo "  → staged capture: $capture_dir"
+    fi
+
+    # Amend the commit
+    git -C "$repo" commit --amend --no-edit -q
+    echo "  → amended commit"
+
+    # Push (force-with-lease — safe force)
+    if git -C "$repo" push --force-with-lease origin "$branch" -q 2>&1; then
+        echo "  → pushed ✓  sentinel archived as .claude-deploy-sentinels/run-${parent_hash:0:12}..."
+    else
+        echo "  → push FAILED — you may need to pull first" >&2
+    fi
+}
+
+cmd_watch() {
+    local commands_mode=0
+    for arg in "$@"; do
+        [[ "$arg" == "--commands" ]] && commands_mode=1
+    done
+
+    local repo="${PWD}"
+    local interval=5
+
+    if [[ ! -d "$repo/.git" ]]; then
+        echo "Error: not a git repo: $repo" >&2
         exit 1
     fi
 
-    BRANCH=$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD)
-    echo "Watching $REPO_DIR [$BRANCH] (every ${INTERVAL}s) — Ctrl-C to stop"
+    local branch
+    branch=$(git -C "$repo" rev-parse --abbrev-ref HEAD)
+    local mode_label=""
+    [[ $commands_mode -eq 1 ]] && mode_label=" [--commands]"
+    echo "Watching $repo [$branch]${mode_label} (every ${interval}s) — Ctrl-C to stop"
+
     while true; do
-        BEFORE=$(git -C "$REPO_DIR" rev-parse HEAD)
-        git -C "$REPO_DIR" pull --ff-only origin "$BRANCH" -q 2>/dev/null
-        AFTER=$(git -C "$REPO_DIR" rev-parse HEAD)
-        TS=$(date '+%H:%M:%S')
-        if [[ "$BEFORE" != "$AFTER" ]]; then
-            MSG=$(git -C "$REPO_DIR" log --oneline -1)
-            echo "[$TS] ✓ $MSG"
+        local before after ts msg
+        before=$(git -C "$repo" rev-parse HEAD)
+        git -C "$repo" pull --ff-only origin "$branch" -q 2>/dev/null
+        after=$(git -C "$repo" rev-parse HEAD)
+        ts=$(date '+%H:%M:%S')
+
+        if [[ "$before" != "$after" ]]; then
+            msg=$(git -C "$repo" log --oneline -1)
+            echo "[$ts] ✓ $msg"
+
+            # --commands mode: check for sentinel in new commit
+            if [[ $commands_mode -eq 1 ]]; then
+                if [[ -f "$repo/.claude-deploy-run" ]]; then
+                    echo "[$ts] ⚡ .claude-deploy-run detected — executing"
+                    _watch_run_sentinel "$repo" "$branch"
+                fi
+            fi
         else
-            echo "[$TS] — $(git -C "$REPO_DIR" rev-parse --short HEAD) (no change)"
+            echo "[$ts] — $(git -C "$repo" rev-parse --short HEAD) (no change)"
         fi
-        sleep "$INTERVAL"
+
+        sleep "$interval"
     done
 }
 
@@ -533,7 +647,7 @@ case "$COMMAND" in
     open)     cmd_open "$@" ;;
     update)   cmd_update ;;
 
-    watch)    cmd_watch ;;
+    watch)    cmd_watch "$@" ;;
     config)   parse_profile "$@"; cmd_config ;;
     profiles) cmd_profiles ;;
     status)   cmd_status "$@" ;;
