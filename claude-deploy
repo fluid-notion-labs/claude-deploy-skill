@@ -20,8 +20,9 @@ done
 set -- "${FILTERED_ARGS[@]}"
 
 # Auto-update: if enabled in global config, update before running (except during update/config)
+# Skipped when sourced for unit tests (CLAUDE_DEPLOY_TEST=1)
 GLOBAL_CFG="$CONFIG_DIR/config"
-if [[ "$NO_UPDATE" == "0" && "$COMMAND" != "update" && "$COMMAND" != "watch" && "$COMMAND" != "config" && -f "$GLOBAL_CFG" ]]; then
+if [[ "${CLAUDE_DEPLOY_TEST:-0}" != "1" && "$NO_UPDATE" == "0" && "$COMMAND" != "update" && "$COMMAND" != "watch" && "$COMMAND" != "config" && -f "$GLOBAL_CFG" ]]; then
     source "$GLOBAL_CFG"
     if [[ "${AUTO_UPDATE:-0}" == "1" ]]; then
         echo "Auto-updating..." >&2
@@ -272,7 +273,7 @@ copy_or_print() {
     local content="$1" label="$2" always_print="${3:-}"
     if clipboard_copy "$content"; then
         echo "📋 $label" >&2
-        [[ "$always_print" == "--always-print" ]] && echo "$content"
+        [[ "$always_print" == "--always-print" ]] && echo "$content" || true
     else
         echo "$content"
     fi
@@ -502,6 +503,8 @@ cmd_watch() {
     done
 }
 
+# Skip dispatch when sourced for unit tests
+if [[ "${CLAUDE_DEPLOY_TEST:-0}" != "1" ]]; then
 case "$COMMAND" in
     setup)    cmd_setup "$@" ;;
     token)    cmd_token "$@" ;;
@@ -514,3 +517,4 @@ case "$COMMAND" in
     status)   cmd_status "$@" ;;
     *)        usage ;;
 esac
+fi
