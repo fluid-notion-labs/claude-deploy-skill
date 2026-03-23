@@ -66,7 +66,7 @@ Key helpers (all require `load_config` to have run first):
 After every `git push`, Claude generates a diff HTML and presents it inline in the chat using `present_files`. This applies to **any repo** Claude is working in via claude-deploy — it is not a script command, it is Claude's standard operating procedure.
 
 ```sh
-git diff HEAD~1 | diff2html -i stdin -o stdout --cs dark -s side \
+git diff HEAD~1 | diff2html -i stdin -o stdout --cs dark -s line \
   | sed 's|<title>.*</title>|<title>diff</title>|; s|<h1>.*</h1>||' \
   > /tmp/last-diff.html
 # then: present_files ["/tmp/last-diff.html"]
@@ -107,7 +107,6 @@ Next up:
 ## Open
 
 - `parse_profile` globals — `$PROFILE` and `$POSITIONAL[]` are intentionally global (infer functions mutate PROFILE post-parse); documented with comment in script
-- **File editing primitives** — research at `docs/research/editing.md`: what file-editing capabilities does Claude have in-container natively? What formats exist (Zed, LSP, unified diff, etc.)? Evaluate whether a small installable node/python CLI tool is needed for insert-line, append, remove-line, find-replace operations. Goal: reliable surgical edits without full-file rewrites.
 
 ## Done (this session)
 
@@ -128,3 +127,5 @@ Next up:
 - Context workflow codified; docs restructured to `docs/context/`
 - Session start echo added — Claude now outputs recent/open/next summary at handover start
 - `diff` command removed — diff is now Claude's post-commit SOP (any repo), not a script command; documented in Post-commit workflow section
+- Post-commit diff switched to `-s line` (line-by-line) — no redundant empty left panel for pure additions
+- File editing primitives researched — no new tool needed; use `str_replace` for unique matches, `sed -i`/`python3` via `bash_tool` for everything else; `create_file` only for >50% file changes; documented in `docs/research/editing.md`
