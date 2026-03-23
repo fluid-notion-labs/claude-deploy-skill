@@ -50,7 +50,7 @@ _do_update() {
     done
     [[ -z "$dest" ]] && dest=$(command -v claude-deploy 2>/dev/null || realpath "$0")
 
-    local repo_dir="${CLAUDE_DEPLOY_REPO:-$HOME/.config/claude-deploy/repo}"
+    local repo_dir="${CLAUDE_DEPLOY_REPO:-${XDG_CACHE_HOME:-$HOME/.cache}/claude-deploy/repo}"
     local url="https://github.com/fluid-notion-labs/claude-deploy-skill.git"
     local git_q=(); [[ "$quiet" == "1" ]] && git_q=(-q)
 
@@ -139,7 +139,11 @@ cmd_setup() {
     local file=$(config_file "$PROFILE")
     mkdir -p "$CONFIG_DIR"
 
-    echo "Setting up org: $PROFILE"
+    echo "Setting up profile: $PROFILE"
+
+    read -p "Account type — org or user? [org/user, default: org] " ACCT
+    local ACCOUNT_TYPE="org"
+    [[ "$ACCT" =~ ^[Uu] ]] && ACCOUNT_TYPE="user"
 
     read -p "GitHub App ID: " APP_ID
     if [[ -z "$APP_ID" ]]; then
@@ -169,6 +173,7 @@ cmd_setup() {
     cat > "$file" << CONF
 APP_ID=$APP_ID
 PEM_PATH=$PEM_DEST
+ACCOUNT_TYPE=$ACCOUNT_TYPE
 AUTO_UPDATE=$AUTO_UPDATE
 CONF
     chmod 600 "$file"
@@ -177,6 +182,8 @@ CONF
 
 cmd_config() {
     # claude-deploy config auto-update [on|off]
+    # AUTO_UPDATE is a global setting — always written to the default config
+    # regardless of --org. parse_profile is called only to consume the flag cleanly.
     local key="${POSITIONAL[0]:-}"
     local val="${POSITIONAL[1]:-}"
     local file=$(config_file "default")
@@ -329,7 +336,7 @@ cmd_token() {
         --header "Accept: application/vnd.github+json" \
         --jq '.token')
 
-    EXPIRY=$(date -d '+1 hour' '+%H:%M %Z')
+    EXPIRY=$(date -d '+1 hour' '+%H:%M %Z' 2>/dev/null || date -v+1H '+%H:%M %Z')
     echo "Token valid until: $EXPIRY" >&2
 
     copy_or_print "$TOKEN" "Token copied to clipboard (valid until $EXPIRY)" --always-print
@@ -343,17 +350,18 @@ cmd_profiles() {
         [[ "$name" == "config" ]] && name="default"
         [[ "$name" == config-* ]] && name="${name#config-}"
         source "$f"
-        echo "  $name — App ID: $APP_ID, PEM: $PEM_PATH"
+        echo "  $name — ${ACCOUNT_TYPE:-org} — App ID: $APP_ID, PEM: $PEM_PATH"
     done
 }
 
 cmd_status() {
     parse_profile "$@"
     load_config "$PROFILE"
-    echo "Profile:  $PROFILE"
-    echo "App ID:   $APP_ID"
-    echo "PEM:      $PEM_PATH"
-    [[ -f "$PEM_PATH" ]] && echo "PEM file: ✓ exists" || echo "PEM file: ✗ missing"
+    echo "Profile:      $PROFILE"
+    echo "Account type: ${ACCOUNT_TYPE:-org}"
+    echo "App ID:       $APP_ID"
+    echo "PEM:          $PEM_PATH"
+    [[ -f "$PEM_PATH" ]] && echo "PEM file:     ✓ exists" || echo "PEM file:     ✗ missing"
 }
 
 cmd_handover() {
@@ -406,7 +414,7 @@ cmd_handover() {
         --header "Accept: application/vnd.github+json" \
         | jq -r '.repositories[].full_name')
 
-    EXPIRY=$(date -d '+1 hour' '+%H:%M %Z')
+    EXPIRY=$(date -d '+1 hour' '+%H:%M %Z' 2>/dev/null || date -v+1H '+%H:%M %Z')
 
     # Build repo list for blob
     if [[ -n "$REPO" ]]; then
@@ -446,15 +454,11 @@ cmd_open() {
     parse_profile "$@"
     load_config "$PROFILE"
 
-    # Determine if org or personal account
-    local owner="${PROFILE}"
     local url
-
-    # Try org URL first, fall back to personal
-    if [[ "$owner" == "default" ]]; then
+    if [[ "${ACCOUNT_TYPE:-org}" == "user" || "$PROFILE" == "default" ]]; then
         url="https://github.com/settings/installations"
     else
-        url="https://github.com/organizations/$owner/settings/installations"
+        url="https://github.com/organizations/$PROFILE/settings/installations"
     fi
 
     echo "Opening: $url" >&2

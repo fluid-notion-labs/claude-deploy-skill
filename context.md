@@ -84,12 +84,12 @@ The update system has historically been tricky. Key details from the commit hist
 ## Remaining refactors (not yet done)
 
 - `parse_profile` globals — `$PROFILE` and `$POSITIONAL[]` are set as globals; fragile but workable at this script size
-- `cmd_config` always writes to `config_file "default"` regardless of `--org`; intentional (AUTO_UPDATE is global) but undocumented
-- `cmd_open` uses `$PROFILE` as org name for the URL — breaks if default profile is used for a personal account
-- `date -d` is GNU-only; not cross-platform
-- Auto-update repo clone lives in `~/.config/` — `~/.cache/claude-deploy/repo` would be more XDG-correct
 
 ## Recent refactors (this session continued)
 
 - `clipboard_copy()` extracted — tries wl-copy → xclip → xsel with clear error if none found (`b8d1336`)
-- `_do_update()` extracted — `cmd_update` and auto-update block now share git+copy+syntax-check logic via `--quiet`/`--dest` flags
+- `_do_update()` extracted — `cmd_update` and auto-update block now share git+copy+syntax-check logic via `--quiet`/`--dest` flags (`e4d3500`)
+- `cmd_open` personal account bug fixed — `ACCOUNT_TYPE=org|user` stored in config at setup, used for correct URL
+- `cmd_config` `--org` behaviour documented — intentionally global, comment added
+- `date -d` made portable — GNU + BSD (`date -v+1H`) fallback
+- XDG cache path — update repo now clones to `~/.cache/claude-deploy/repo` (respects `$XDG_CACHE_HOME`)
