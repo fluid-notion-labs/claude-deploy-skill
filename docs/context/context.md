@@ -107,6 +107,7 @@ Next up:
 ## Open
 
 - `parse_profile` globals — `$PROFILE` and `$POSITIONAL[]` are intentionally global (infer functions mutate PROFILE post-parse); documented with comment in script
+- **File editing primitives** — research at `docs/research/editing.md`: what file-editing capabilities does Claude have in-container natively? What formats exist (Zed, LSP, unified diff, etc.)? Evaluate whether a small installable node/python CLI tool is needed for insert-line, append, remove-line, find-replace operations. Goal: reliable surgical edits without full-file rewrites.
 
 ## Done (this session)
 
