@@ -174,6 +174,19 @@ cmd_config() {
     esac
 }
 
+# If PROFILE is still "default" and exactly one org is configured, use it.
+# Sets PROFILE as a side effect; returns 0 on success, 1 if ambiguous.
+infer_single_org() {
+    local configs=("$CONFIG_DIR"/config-*)
+    configs=($(for f in "${configs[@]}"; do [[ -f "$f" ]] && echo "$f"; done))
+    if [[ ${#configs[@]} -eq 1 ]]; then
+        PROFILE=$(basename "${configs[0]}" | sed 's/^config-//')
+        echo "Using org '$PROFILE' (only org configured)" >&2
+        return 0
+    fi
+    return 1
+}
+
 infer_profile() {
     local repo="$1"
     if [[ "$PROFILE" == "default" ]]; then
@@ -183,12 +196,7 @@ infer_profile() {
             PROFILE="$owner"
             echo "Using org '$PROFILE' (inferred from repo owner)" >&2
         else
-            local profiles=("$CONFIG_DIR"/config-*)
-            profiles=($(for f in "${profiles[@]}"; do [[ -f "$f" ]] && echo "$f"; done))
-            if [[ ${#profiles[@]} -eq 1 ]]; then
-                PROFILE=$(basename "${profiles[0]}" | sed 's/^config-//')
-                echo "Using profile '$PROFILE' (only profile configured)" >&2
-            fi
+            infer_single_org || true
         fi
     fi
 }
@@ -297,12 +305,7 @@ cmd_handover() {
     # If no repo given, infer org from single configured org or require --org
     if [[ -z "$REPO" ]]; then
         if [[ "$PROFILE" == "default" ]]; then
-            local profiles=("$CONFIG_DIR"/config-*)
-            profiles=($(for f in "${profiles[@]}"; do [[ -f "$f" ]] && echo "$f"; done))
-            if [[ ${#profiles[@]} -eq 1 ]]; then
-                PROFILE=$(basename "${profiles[0]}" | sed 's/^config-//')
-                echo "Using profile '$PROFILE' (only profile configured)" >&2
-            else
+            if ! infer_single_org; then
                 echo "Usage: claude-deploy handover [<owner/repo>] [--org <n>]" >&2
                 exit 1
             fi
