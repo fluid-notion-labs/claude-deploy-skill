@@ -76,6 +76,23 @@ Tests cover: `config_file`, `parse_profile`, `load_config`, `infer_single_org`, 
 - When Done exceeds ~20 items, archive: append to `docs/context/archive.md`, clear Done
 - Update this file as part of every commit that changes behaviour
 
+## Session start
+
+At the start of every session, echo a status summary in this format (no preamble):
+
+```
+Repo: fluid-notion-labs/claude-deploy-skill
+
+Recent:
+- <last ~8 done items from Done list>
+
+Open:
+- <items from Open>
+
+Next up:
+- <inferred or explicit next tasks>
+```
+
 ## Open
 
 - `parse_profile` globals — `$PROFILE` and `$POSITIONAL[]` are intentionally global (infer functions mutate PROFILE post-parse); documented with comment in script
@@ -97,3 +114,4 @@ Tests cover: `config_file`, `parse_profile`, `load_config`, `infer_single_org`, 
 - bats unit test suite added — 49 tests, all passing
 - Handover blob now embeds `docs/context/context.md` inline via git clone
 - Context workflow codified; docs restructured to `docs/context/`
+- Session start echo added — Claude now outputs recent/open/next summary at handover start
