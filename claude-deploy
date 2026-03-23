@@ -21,7 +21,7 @@ set -- "${FILTERED_ARGS[@]}"
 
 # Auto-update: if enabled in global config, update before running (except during update/config)
 GLOBAL_CFG="$CONFIG_DIR/config"
-if [[ "$NO_UPDATE" == "0" && "$COMMAND" != "update" && "$COMMAND" != "config" && -f "$GLOBAL_CFG" ]]; then
+if [[ "$NO_UPDATE" == "0" && "$COMMAND" != "update" && "$COMMAND" != "watch" && "$COMMAND" != "config" && -f "$GLOBAL_CFG" ]]; then
     source "$GLOBAL_CFG"
     if [[ "${AUTO_UPDATE:-0}" == "1" ]]; then
         DEST=$(command -v claude-deploy 2>/dev/null || realpath "$0")
@@ -55,6 +55,7 @@ Commands:
   handover [<owner/repo>] [--org <n>] Generate session blob → wl-copy; lists all repos if no repo given
   open     [--org <n>]             Open GitHub App settings to add repos
   update                            Overwrite this script from main branch
+  watch                             Poll repo every 5s, print new commits
   config   auto-update [on|off]    Toggle auto-update on each run
   profiles                          List configured profiles
   status   [--org <n>]             Show current config
@@ -440,12 +441,40 @@ cmd_update() {
     echo "✓ Updated to $(git -C "$REPO_DIR" rev-parse --short HEAD)" >&2
 }
 
+cmd_watch() {
+    REPO_DIR="${CLAUDE_DEPLOY_REPO:-$HOME/.config/claude-deploy/repo}"
+    URL="https://github.com/fluid-notion-labs/claude-deploy-skill.git"
+    INTERVAL=5
+
+    if [[ ! -d "$REPO_DIR/.git" ]]; then
+        echo "Cloning claude-deploy-skill..." >&2
+        mkdir -p "$(dirname "$REPO_DIR")"
+        git clone -q "$URL" "$REPO_DIR"
+    fi
+
+    echo "Watching $URL (every ${INTERVAL}s) — Ctrl-C to stop"
+    while true; do
+        BEFORE=$(git -C "$REPO_DIR" rev-parse HEAD)
+        git -C "$REPO_DIR" pull --ff-only origin main -q 2>/dev/null
+        AFTER=$(git -C "$REPO_DIR" rev-parse HEAD)
+        TS=$(date '+%H:%M:%S')
+        if [[ "$BEFORE" != "$AFTER" ]]; then
+            MSG=$(git -C "$REPO_DIR" log --oneline -1)
+            echo "[$TS] ✓ $MSG"
+        else
+            echo "[$TS] — $(git -C "$REPO_DIR" rev-parse --short HEAD) (no change)"
+        fi
+        sleep "$INTERVAL"
+    done
+}
+
 case "$COMMAND" in
     setup)    cmd_setup "$@" ;;
     token)    cmd_token "$@" ;;
     handover) cmd_handover "$@" ;;
     open)     cmd_open "$@" ;;
     update)   cmd_update ;;
+    watch)    cmd_watch ;;
     config)   parse_profile "$@"; cmd_config ;;
     profiles) cmd_profiles ;;
     status)   cmd_status "$@" ;;
