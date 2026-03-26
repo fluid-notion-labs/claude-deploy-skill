@@ -70,6 +70,16 @@ _do_update() {
     if bash -n "$tmp" 2>/dev/null; then
         mv "$tmp" "$dest"
         chmod +x "$dest"
+
+        # Install bash completion alongside binary update
+        local comp_src="$repo_dir/completions/claude-deploy.bash"
+        if [[ -f "$comp_src" ]]; then
+            local comp_dir="${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion/completions"
+            mkdir -p "$comp_dir"
+            cp "$comp_src" "$comp_dir/claude-deploy"
+            [[ "$quiet" == "0" ]] && echo "✓ Completion installed → $comp_dir/claude-deploy" >&2
+        fi
+
         [[ "$quiet" == "0" ]] && echo "✓ Updated to $(git -C "$repo_dir" rev-parse --short HEAD)" >&2
         return 0
     else

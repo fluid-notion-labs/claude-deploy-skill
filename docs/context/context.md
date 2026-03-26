@@ -160,6 +160,7 @@ Next up:
 
 - `token` infers owner/repo from cwd git remote (same as handover)
 - Context doc: token refresh mid-session documented; handover vs token usage clarified
+- bash completion added (`completions/claude-deploy.bash`); installed automatically by `update` into `~/.local/share/bash-completion/completions/`
 - `--profile` alias removed; `--org` is the only flag
 - `watch` command added, uses cwd by default
 - Extracted: `generate_jwt()`, `get_install_id()`, `infer_single_org()`, `copy_or_print()`
