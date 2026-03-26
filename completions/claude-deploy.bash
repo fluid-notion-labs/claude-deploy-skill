@@ -66,15 +66,11 @@ _claude_deploy_complete() {
     esac
 }
 
-# Complete --org values from configured profiles
+# Complete --org values by calling the binary (single source of truth)
 _claude_deploy_orgs() {
-    local config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/claude-deploy"
-    local orgs=()
-    for f in "$config_dir"/config-*; do
-        [[ -f "$f" ]] || continue
-        orgs+=("${f##*config-}")
-    done
-    COMPREPLY=($(compgen -W "${orgs[*]}" -- "$cur"))
+    local orgs
+    orgs=$(claude-deploy profiles --names 2>/dev/null)
+    COMPREPLY=($(compgen -W "$orgs" -- "$cur"))
 }
 
 complete -F _claude_deploy_complete claude-deploy

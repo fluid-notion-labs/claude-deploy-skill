@@ -368,10 +368,31 @@ cmd_token() {
     copy_or_print "$TOKEN" "Token copied to clipboard (valid until $EXPIRY)" --always-print
 }
 
+# Print one profile name per line (default, then named orgs).
+# Used by cmd_profiles and bash completion.
+_list_profile_names() {
+    for f in "$CONFIG_DIR"/config "$CONFIG_DIR"/config-*; do
+        [[ -f "$f" ]] || continue
+        local name
+        name=$(basename "$f")
+        [[ "$name" == "config" ]]  && echo "default" && continue
+        [[ "$name" == config-* ]]  && echo "${name#config-}"
+    done
+}
+
 cmd_profiles() {
+    local names_only=0
+    [[ "${1:-}" == "--names" ]] && names_only=1
+
+    if [[ $names_only -eq 1 ]]; then
+        _list_profile_names
+        return
+    fi
+
     echo "Configured orgs:"
     for f in "$CONFIG_DIR"/config "$CONFIG_DIR"/config-*; do
         [[ -f "$f" ]] || continue
+        local name
         name=$(basename "$f")
         [[ "$name" == "config" ]] && name="default"
         [[ "$name" == config-* ]] && name="${name#config-}"
