@@ -12,7 +12,7 @@
 
 ```sh
 claude-deploy setup    [--org <n>]                # configure App ID + ingest PEM
-claude-deploy token    <owner/repo> [--org <n>]   # get ephemeral token → clipboard
+claude-deploy token    [<owner/repo>] [--org <n>] # get ephemeral token → clipboard (infers repo from cwd)
 claude-deploy handover [<owner/repo>] [--org <n>] # full session blob → clipboard (embeds context.md)
 claude-deploy watch    [--commands]           # poll cwd repo every 5s; --commands runs .claude-deploy-run sentinels
 claude-deploy open     [--org <n>]                # xdg-open GitHub App install settings
@@ -32,6 +32,10 @@ claude-deploy status   [--org <n>]                # show config for org
 ~/.cache/claude-deploy/
   repo/                   # git clone of claude-deploy-skill (used by update/auto-update)
 ```
+
+## Token refresh mid-session
+
+If a session is already running and the token expires, use `claude-deploy token` (run from inside the target repo) — it infers owner/repo from the git remote and puts a fresh token on the clipboard. Paste it into the session directly; no full handover needed. Use `handover` only when starting a new session or switching repos.
 
 ## Container constraints
 
@@ -154,6 +158,8 @@ Next up:
 
 ## Done (this session)
 
+- `token` infers owner/repo from cwd git remote (same as handover)
+- Context doc: token refresh mid-session documented; handover vs token usage clarified
 - `--profile` alias removed; `--org` is the only flag
 - `watch` command added, uses cwd by default
 - Extracted: `generate_jwt()`, `get_install_id()`, `infer_single_org()`, `copy_or_print()`
