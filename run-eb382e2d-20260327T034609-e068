@@ -2,7 +2,7 @@ status: running
 main-ref: eb382e2d
 created: 2026-03-27T03:46:00
 msg: debug sentinel — env + git info
-ran: 2026-03-27T11:46:16
+ran: 2026-03-27T11:46:59
 
 echo "=== worker env ==="
 echo "hostname: $(hostname)"
