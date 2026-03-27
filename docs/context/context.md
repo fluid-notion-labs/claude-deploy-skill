@@ -186,11 +186,19 @@ Next up:
 
 - `watch` spinner — replace per-tick output with in-place spinner (`\r`, frames `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`)
 - `prune` delete not yet implemented — `Backend` needs `delete_sentinels(&[names])` method
-- `claude-deploy-sentinel` not yet wired into `claude-deploy watch` as preferred runner — bash watch still primary
 - sentinel `main-ref` checkout semantics — currently watcher pulls latest main and runs there; option to checkout exact `main-ref` for reproducibility (deferred, needs design)
 - `parse_profile` globals — `$PROFILE` and `$POSITIONAL[]` intentionally global; documented
 
 ## Done (this session)
+
+- `claude-deploy-sentinel` Rust binary working end-to-end — watch, claim, run, log, worktree
+- worktree detached HEAD detection + repair on startup
+- `git worktree prune` before add — fixes stale registration errors
+- reads always via `origin/` ref (never stale disk) — fixes watch seeing already-completed sentinels as new
+- claim pulls worktree first + re-checks status before claiming
+- binary name fixed to `claude-deploy-sentinel` throughout
+- sentinel crate `.gitignore` added (target/, Cargo.lock)
+- `wait-for-push.sh --sentinel` mode proven working
 
 - bash completion: detects if bash-completion installed, warns with steps if not
 - sentinel hardening: optimistic claim (`status: claiming` + `worker` field), abandoned reaper, `_sentinel_branch_ensure` fixes, `_sentinel_set_field` corruption fix (python3 insert), main-branch safety guard, capture push safety
