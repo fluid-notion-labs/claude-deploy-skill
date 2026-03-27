@@ -1,7 +1,9 @@
+mod backend;
 mod commands;
 mod sentinel;
 
 use anyhow::Result;
+use backend::GitShellBackend;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -50,13 +52,23 @@ enum Command {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    let repo = cli.repo.unwrap_or_else(|| std::env::current_dir().expect("cwd"));
+    let repo_path = cli.repo
+        .unwrap_or_else(|| std::env::current_dir().expect("cwd"));
+
+    let backend = GitShellBackend::new(&repo_path);
 
     match cli.command {
-        Command::Queue { all, log }          => commands::queue::run(repo, all, log),
-        Command::Watch { commands, interval } => commands::watch::run(repo, commands, interval).await,
-        Command::Create { script, capture, msg } => commands::create::run(repo, script, capture, msg),
-        Command::Reap { .. }   => todo!("reap not yet implemented"),
-        Command::Prune { .. }  => todo!("prune not yet implemented"),
+        Command::Queue { all, log } =>
+            commands::queue::run(&backend, all, log),
+        Command::Watch { commands, interval } =>
+            commands::watch::run(&backend, repo_path, commands, interval).await,
+        Command::Create { script, capture, msg } =>
+            commands::create::run(&backend, repo_path, script, capture, msg),
+        Command::Reap { timeout } =>
+            commands::reap::run(&backend, timeout),
+        Command::Prune { dry_run, keep_failed, keep_success_with_ref,
+                         keep_success_ephemeral, keep_abandoned, keep_reachable } =>
+            commands::prune::run(&backend, dry_run, keep_failed, keep_success_with_ref,
+                                 keep_success_ephemeral, keep_abandoned, keep_reachable),
     }
 }

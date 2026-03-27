@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use std::fmt;
 use std::path::Path;
@@ -71,7 +71,7 @@ impl fmt::Display for Status {
 }
 
 // ---------------------------------------------------------------------------
-// Sentinel
+// Sentinel — pure data, no git ops
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone)]
@@ -159,61 +159,21 @@ impl Sentinel {
 }
 
 // ---------------------------------------------------------------------------
-// Git shell helpers
-// Shell out for network ops (fetch/push) — works with both git and jj repos.
-// Read ops use gix for speed (no subprocess overhead).
+// Convenience: read all sentinels via backend
 // ---------------------------------------------------------------------------
 
-/// Fetch origin/claude-deploy-sentinels.
-/// Uses git CLI — works whether the repo is plain git or jj-backed.
-pub fn fetch_sentinel_branch(repo_path: &Path) -> Result<()> {
-    let out = Command::new("git")
-        .args(["-C", repo_path.to_str().unwrap_or("."),
-               "fetch", "origin", SENTINEL_BRANCH, "-q"])
-        .output()
-        .context("git fetch")?;
+use crate::backend::Backend;
 
-    if !out.status.success() {
-        let stderr = String::from_utf8_lossy(&out.stderr);
-        anyhow::bail!("git fetch failed: {}", stderr);
-    }
-    Ok(())
-}
-
-/// Read all sentinels from origin/claude-deploy-sentinels without checking out.
-/// Uses gix for fast tree walking.
-pub fn read_all(repo_path: &Path) -> Result<Vec<Sentinel>> {
-    fetch_sentinel_branch(repo_path)?;
-
-    // Use git show-ref + git cat-file to read without gix complexity for now
-    // gix tree walking is verbose; shell is simpler for this read path
-    let ls = Command::new("git")
-        .args(["-C", repo_path.to_str().unwrap_or("."),
-               "ls-tree", "-r", "--name-only",
-               &format!("origin/{}", SENTINEL_BRANCH)])
-        .output()
-        .context("git ls-tree")?;
-
-    let names: Vec<String> = String::from_utf8_lossy(&ls.stdout)
-        .lines()
-        .filter(|l| l.starts_with("run-"))
-        .map(|l| l.to_string())
+pub fn read_all(backend: &dyn Backend) -> Result<Vec<Sentinel>> {
+    backend.fetch_sentinel_branch()?;
+    let names = backend.list_sentinels()?;
+    let mut sentinels: Vec<Sentinel> = names
+        .iter()
+        .filter_map(|name| {
+            backend.read_sentinel(name).ok()
+                .map(|content| Sentinel::parse(name, &content))
+        })
         .collect();
-
-    let mut sentinels = Vec::new();
-    for name in names {
-        let content_out = Command::new("git")
-            .args(["-C", repo_path.to_str().unwrap_or("."),
-                   "show", &format!("origin/{}:{}", SENTINEL_BRANCH, name)])
-            .output()
-            .context("git show")?;
-
-        if content_out.status.success() {
-            let content = String::from_utf8_lossy(&content_out.stdout);
-            sentinels.push(Sentinel::parse(&name, &content));
-        }
-    }
-
     sentinels.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(sentinels)
 }
@@ -221,30 +181,18 @@ pub fn read_all(repo_path: &Path) -> Result<Vec<Sentinel>> {
 /// Generate a unique sentinel filename.
 /// Format: run-<ref8>-<YYYYMMDDTHHmmss>-<rand4>
 pub fn new_name(repo_path: &Path) -> Result<String> {
-    let head_out = Command::new("git")
-        .args(["-C", repo_path.to_str().unwrap_or("."),
-               "rev-parse", "--short=8", "HEAD"])
-        .output()
-        .context("git rev-parse HEAD")?;
-
-    let ref8 = String::from_utf8_lossy(&head_out.stdout).trim().to_string();
+    let out = Command::new("git")
+        .arg("-C").arg(repo_path)
+        .args(["rev-parse", "--short=8", "HEAD"])
+        .output()?;
+    let ref8 = String::from_utf8_lossy(&out.stdout).trim().to_string();
     let ts = Utc::now().format("%Y%m%dT%H%M%S");
     let rand = rand4();
     Ok(format!("run-{}-{}-{}", ref8, ts, rand))
 }
 
-fn rand4() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.subsec_nanos())
-        .unwrap_or(0);
-    let pid = std::process::id();
-    format!("{:04x}", (nanos ^ pid) & 0xffff)
-}
-
 // ---------------------------------------------------------------------------
-// Helpers
+// Private helpers
 // ---------------------------------------------------------------------------
 
 fn field<'a>(line: &'a str, key: &str) -> Option<&'a str> {
@@ -260,4 +208,14 @@ fn parse_dt(s: &str) -> Option<DateTime<Utc>> {
                 .ok()
                 .map(|ndt| ndt.and_utc())
         })
+}
+
+fn rand4() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0);
+    let pid = std::process::id();
+    format!("{:04x}", (nanos ^ pid) & 0xffff)
 }
