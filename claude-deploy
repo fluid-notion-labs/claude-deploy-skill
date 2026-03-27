@@ -596,6 +596,19 @@ SENTINEL_RUNNING_TIMEOUT=${CLAUDE_DEPLOY_SENTINEL_TIMEOUT:-600}
 # Worker identity for optimistic locking (hostname + PID)
 _sentinel_worker() { echo "${HOSTNAME:-$(hostname 2>/dev/null || echo host)}-$$"; }
 
+# Generate a unique sentinel filename.
+# Format: run-<main-ref-8>-<timestamp>-<random4>
+# random suffix prevents collisions when multiple sentinels are created
+# in the same second against the same commit.
+_sentinel_new_name() {
+    local repo="${1:-$PWD}"
+    local ref ts rand
+    ref=$(git -C "$repo" rev-parse --short=8 HEAD 2>/dev/null || echo "noref")
+    ts=$(date -u '+%Y%m%dT%H%M%S')
+    rand=$(head -c 2 /dev/urandom | xxd -p | head -c 4)
+    echo "run-${ref}-${ts}-${rand}"
+}
+
 # Parse a sentinel file into variables.
 # Sets: s_status, s_main_ref, s_created, s_cmd, s_capture, s_msg, s_worker, s_ran, s_script_body
 _sentinel_parse() {
