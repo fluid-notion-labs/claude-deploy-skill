@@ -1,9 +1,10 @@
-status: running
+status: success
 main-ref: c5130951
 created: 2026-03-27T05:55:48
 msg: smoke test — host info
 worker: nick-MacPro5-1-102389
 ran: 2026-03-27T05:56:14
+completed: 2026-03-27T05:56:23
 
 uname -a
 echo "---"
@@ -13,3 +14,14 @@ df -h /
 echo "---"
 cargo --version 2>/dev/null || echo "no cargo"
 rustc --version 2>/dev/null || echo "no rustc"
+
+# --- log ---
+# Linux nick-MacPro5-1 6.17.0-5-generic #5-Ubuntu SMP PREEMPT_DYNAMIC Mon Sep 22 10:00:33 UTC 2025 x86_64 GNU/Linux
+# ---
+# 8
+# ---
+# Filesystem      Size  Used Avail Use% Mounted on
+# /dev/sda2       228G   20G  197G  10% /
+# ---
+# cargo 1.94.0 (85eff7c80 2026-01-15)
+# rustc 1.94.0 (4a4ef493e 2026-03-02)
