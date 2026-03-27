@@ -1,8 +1,9 @@
-status: claiming
+status: running
 main-ref: 737a9e7
 created: 2026-03-27T06:00:00
 msg: rust watch end-to-end test
 worker: nick-MacPro5-1-51503
+ran: 2026-03-27T04:45:02
 
 echo "=== all good ==="
 echo "branch: $(git rev-parse --abbrev-ref HEAD)"
