@@ -3,7 +3,7 @@
 # Run from the repo root after pulling latest.
 set -e
 
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN_DIR="${HOME}/.local/bin"
 
 echo "→ repo: $REPO_DIR"
