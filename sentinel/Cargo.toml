@@ -7,7 +7,7 @@ repository = "https://github.com/fluid-notion-labs/claude-deploy-skill"
 license = "MIT"
 
 [[bin]]
-name = "claude-sentinel"
+name = "claude-deploy-sentinel"
 path = "src/main.rs"
 
 [dependencies]
