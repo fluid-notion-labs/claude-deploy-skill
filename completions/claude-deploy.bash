@@ -15,7 +15,7 @@ _claude_deploy_complete() {
         prev="${words[$((cword - 1))]}"
     fi
 
-    local commands="setup token handover watch open update config profiles status"
+    local commands="setup token handover watch queue open update config profiles status"
 
     # top-level: complete command name
     if [[ $cword -eq 1 ]]; then
@@ -52,6 +52,18 @@ _claude_deploy_complete() {
             ;;
         watch)
             COMPREPLY=($(compgen -W "--commands" -- "$cur"))
+            ;;
+        queue)
+            case "$prev" in
+                --log)
+                    # Complete sentinel names from remote branch if possible
+                    local sentinels
+                    sentinels=$(git ls-tree -r --name-only "origin/claude-deploy-sentinels" 2>/dev/null | grep "^run-" || true)
+                    COMPREPLY=($(compgen -W "$sentinels" -- "$cur"))
+                    return
+                    ;;
+            esac
+            COMPREPLY=($(compgen -W "--log --all" -- "$cur"))
             ;;
         config)
             if [[ $cword -eq 2 ]]; then

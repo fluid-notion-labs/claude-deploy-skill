@@ -122,6 +122,7 @@ Commands:
   open     [--org <n>]             Open GitHub App settings to add repos
   update                            Overwrite this script from main branch
   watch    [--commands]              Poll repo every 5s, print new commits; --commands also runs .claude-deploy-run sentinels
+  queue    [--log <name>] [--all]   List sentinels (pending/running/done); --log dumps execution log; --all shows full history
   config   auto-update [on|off]    Toggle auto-update on each run
   profiles                          List configured profiles
   status   [--org <n>]             Show current config
@@ -722,6 +723,108 @@ _sentinel_run() {
     git -C "$repo" checkout "$main_branch" -q
 }
 
+# Print the queue of sentinels from the sentinel branch.
+# Reads via git show — no branch checkout required.
+# Usage: cmd_queue [--log <sentinel-name>] [--all]
+#   --log <n>   dump full execution log for a named sentinel
+#   --all        include completed sentinels (default: pending + running only)
+cmd_queue() {
+    local log_target="" show_all=0
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --log) log_target="$2"; shift 2 ;;
+            --all) show_all=1; shift ;;
+            *) shift ;;
+        esac
+    done
+
+    local repo="${PWD}"
+    if [[ ! -d "$repo/.git" ]]; then
+        echo "Error: not a git repo: $repo" >&2
+        exit 1
+    fi
+
+    # Fetch sentinel branch quietly — fail gracefully if it doesn't exist yet
+    if ! git -C "$repo" fetch origin "$SENTINEL_BRANCH" -q 2>/dev/null; then
+        echo "No sentinel branch found. Run 'claude-deploy watch --commands' to initialise." >&2
+        exit 0
+    fi
+
+    # List all sentinel files on the branch (remote ref — no checkout)
+    local sentinel_names
+    sentinel_names=$(git -C "$repo" ls-tree -r --name-only "origin/$SENTINEL_BRANCH" 2>/dev/null \
+        | grep "^run-" | sort || true)
+
+    if [[ -z "$sentinel_names" ]]; then
+        echo "Queue is empty." >&2
+        exit 0
+    fi
+
+    # --log mode: dump log for one sentinel
+    if [[ -n "$log_target" ]]; then
+        # Accept bare name or full name
+        local match
+        match=$(grep -F "$log_target" <<< "$sentinel_names" | head -1)
+        if [[ -z "$match" ]]; then
+            echo "Sentinel not found: $log_target" >&2
+            exit 1
+        fi
+        local content
+        content=$(git -C "$repo" show "origin/$SENTINEL_BRANCH:$match" 2>/dev/null)
+        # Print header fields
+        grep -E "^(status|main-ref|created|ran|completed|result-ref|capture|msg):" <<< "$content" || true
+        echo ""
+        # Print script body (between blank line and log marker)
+        awk '/^$/{found=1; next} found && /^# --- log ---/{exit} found{print}' <<< "$content"
+        echo ""
+        # Print log section
+        if grep -q "^# --- log ---" <<< "$content"; then
+            echo "--- execution log ---"
+            awk '/^# --- log ---/{found=1; next} found{sub(/^# ?/,""); print}' <<< "$content"
+        else
+            echo "(no log yet)"
+        fi
+        return
+    fi
+
+    # Table mode
+    # Columns: status  name  created  main-ref  result-ref  msg
+    local status_icon name created main_ref result_ref msg status
+
+    # Header
+    printf "%-10s %-36s %-19s %-8s %-8s %s\n" \
+        "STATUS" "SENTINEL" "CREATED" "REF" "RESULT" "MSG"
+    printf "%-10s %-36s %-19s %-8s %-8s %s\n" \
+        "----------" "------------------------------------" "-------------------" "--------" "--------" "---"
+
+    while IFS= read -r sname; do
+        local content
+        content=$(git -C "$repo" show "origin/$SENTINEL_BRANCH:$sname" 2>/dev/null) || continue
+
+        status=$(grep "^status:" <<< "$content" | head -1 | sed 's/^status:[[:space:]]*//')
+        created=$(grep "^created:" <<< "$content" | head -1 | sed 's/^created:[[:space:]]*//')
+        main_ref=$(grep "^main-ref:" <<< "$content" | head -1 | sed 's/^main-ref:[[:space:]]*//' | cut -c1-8)
+        result_ref=$(grep "^result-ref:" <<< "$content" | head -1 | sed 's/^result-ref:[[:space:]]*//' | cut -c1-8)
+        msg=$(grep "^msg:" <<< "$content" | head -1 | sed 's/^msg:[[:space:]]*//')
+
+        # Filter: skip completed unless --all
+        if [[ $show_all -eq 0 && "$status" != "new" && "$status" != "running" ]]; then
+            continue
+        fi
+
+        case "$status" in
+            new)     status_icon="⏳ new    " ;;
+            running) status_icon="⚡ running" ;;
+            success) status_icon="✅ success" ;;
+            failure) status_icon="❌ failure" ;;
+            *)       status_icon="?  $status" ;;
+        esac
+
+        printf "%-10s %-36s %-19s %-8s %-8s %s\n" \
+            "$status_icon" "$sname" "${created:--}" "${main_ref:--}" "${result_ref:--}" "${msg:-(no msg)}"
+    done <<< "$sentinel_names"
+}
+
 cmd_watch() {
     local commands_mode=0
     for arg in "$@"; do
@@ -805,6 +908,7 @@ case "$COMMAND" in
     update)   cmd_update ;;
 
     watch)    cmd_watch "$@" ;;
+    queue)    cmd_queue "$@" ;;
     config)   parse_profile "$@"; cmd_config ;;
     profiles) cmd_profiles ;;
     status)   cmd_status "$@" ;;
