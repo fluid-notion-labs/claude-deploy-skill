@@ -1,13 +1,16 @@
 //! VCS backend abstraction.
 //!
 //! All sentinel git operations go through [`Backend`]. Currently only
-//! [`GitShellBackend`] is implemented — it shells out to `git`, which means
-//! it works with plain git repos, jj-backed repos (via `jj git export`), and
-//! anything else that presents a git remote.
+//! [`GitShellBackend`] is implemented.
+//!
+//! `GitShellBackend` uses a **git worktree** for the sentinel branch,
+//! kept at `.git/claude-sentinel-wt/` inside the repo. This means the
+//! main working tree never changes branch — no checkout thrashing, safe
+//! under Ctrl-C, invisible to normal git status.
 //!
 //! Future backends:
-//!   - `GixBackend`  — pure Rust gitoxide, no subprocess for read ops
-//!   - `JjBackend`   — jj workspaces, no branch checkout thrashing
+//!   - `GixBackend`  — pure Rust gitoxide
+//!   - `JjBackend`   — jj workspaces (same idea, native)
 
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
@@ -21,87 +24,60 @@ use crate::sentinel::SENTINEL_BRANCH;
 
 pub trait Backend: Send + Sync {
     // --- repo info ---
-
-    /// Current branch name (e.g. "main").
     fn current_branch(&self) -> Result<String>;
-
-    /// Short SHA of HEAD (8 chars).
     fn head_short(&self) -> Result<String>;
-
-    /// Full SHA of HEAD.
     fn head_sha(&self) -> Result<String>;
 
-    // --- sentinel branch reads (no checkout) ---
-
-    /// Fetch origin/claude-deploy-sentinels.
+    // --- sentinel branch reads (no checkout, reads from worktree or origin) ---
     fn fetch_sentinel_branch(&self) -> Result<()>;
-
-    /// List sentinel file names on origin/claude-deploy-sentinels.
     fn list_sentinels(&self) -> Result<Vec<String>>;
-
-    /// Read raw content of a sentinel file from origin/claude-deploy-sentinels.
     fn read_sentinel(&self, name: &str) -> Result<String>;
 
-    // --- sentinel branch writes ---
-
-    /// Ensure the sentinel branch exists locally and on origin (creates orphan if needed).
+    // --- sentinel branch writes (all via worktree — no main-tree checkout) ---
     fn ensure_sentinel_branch(&self) -> Result<()>;
-
-    /// Write a sentinel file, commit, and push to sentinel branch.
-    /// Leaves working tree on whatever branch it was on.
     fn push_sentinel(&self, name: &str, content: &str, commit_msg: &str) -> Result<()>;
-
-    /// Update an existing sentinel file, commit, and push.
-    /// Precondition: sentinel branch is currently checked out.
-    fn update_sentinel_checked_out(&self, name: &str, content: &str, commit_msg: &str) -> Result<()>;
-
-    // --- branch management ---
-
-    /// Checkout a local branch. Fails if working tree is dirty.
-    fn checkout(&self, branch: &str) -> Result<()>;
-
-    /// Pull --ff-only from origin for a branch.
-    fn pull_ff(&self, branch: &str) -> Result<()>;
-
-    /// Pull --ff-only sentinel branch and return success/failure.
-    fn pull_sentinel_ff(&self) -> Result<bool>;
+    fn update_sentinel(&self, name: &str, content: &str, commit_msg: &str) -> Result<()>;
 
     // --- optimistic claim ---
-
-    /// Try to claim a sentinel: write status=claiming+worker, push.
-    /// Returns Ok(true) if we won the race, Ok(false) if another worker got it.
     fn claim_sentinel(&self, name: &str, worker: &str) -> Result<bool>;
-
-    /// Read the worker field of a sentinel from origin (post-claim verification).
     fn sentinel_worker_on_origin(&self, name: &str) -> Result<Option<String>>;
 
     // --- main branch writes ---
-
-    /// Add paths and commit+push to a branch.
+    fn pull_main(&self, branch: &str) -> Result<()>;
     fn commit_and_push(&self, paths: &[&Path], msg: &str, branch: &str) -> Result<String>;
-
-    /// SHA of a ref on origin.
-    fn origin_sha(&self, branch: &str) -> Result<String>;
 }
 
 // ---------------------------------------------------------------------------
 // GitShellBackend
 // ---------------------------------------------------------------------------
 
-/// Backend implementation that shells out to `git`.
-/// Works with any repo that has a `git` remote named `origin`.
 pub struct GitShellBackend {
+    /// Main working tree — stays on main branch always.
     pub repo: PathBuf,
+    /// Sentinel worktree — `.git/claude-sentinel-wt/`, always on sentinel branch.
+    sentinel_wt: PathBuf,
 }
 
 impl GitShellBackend {
     pub fn new(repo: impl Into<PathBuf>) -> Self {
-        Self { repo: repo.into() }
+        let repo = repo.into();
+        let sentinel_wt = repo.join(".git").join("claude-sentinel-wt");
+        Self { repo, sentinel_wt }
     }
 
+    /// Run git in the main repo.
     fn git(&self, args: &[&str]) -> Result<String> {
+        self.git_in(&self.repo, args)
+    }
+
+    /// Run git in the sentinel worktree.
+    fn git_wt(&self, args: &[&str]) -> Result<String> {
+        self.git_in(&self.sentinel_wt, args)
+    }
+
+    fn git_in(&self, dir: &Path, args: &[&str]) -> Result<String> {
         let out = Command::new("git")
-            .arg("-C").arg(&self.repo)
+            .arg("-C").arg(dir)
             .args(args)
             .output()
             .with_context(|| format!("git {}", args.join(" ")))?;
@@ -116,7 +92,6 @@ impl GitShellBackend {
         Ok(String::from_utf8_lossy(&out.stdout).to_string())
     }
 
-    /// Run git, return true if exit 0.
     fn git_ok(&self, args: &[&str]) -> bool {
         Command::new("git")
             .arg("-C").arg(&self.repo)
@@ -126,19 +101,78 @@ impl GitShellBackend {
             .unwrap_or(false)
     }
 
-    fn sentinel_file_path(&self, name: &str) -> PathBuf {
-        self.repo.join(name)
+    fn git_wt_ok(&self, args: &[&str]) -> bool {
+        Command::new("git")
+            .arg("-C").arg(&self.sentinel_wt)
+            .args(args)
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
     }
 
-    fn worker_id() -> String {
+    /// Path to a sentinel file in the worktree.
+    pub fn sentinel_path(&self, name: &str) -> PathBuf {
+        self.sentinel_wt.join(name)
+    }
+
+    /// Ensure the sentinel worktree exists and is up to date.
+    /// Called lazily — safe to call multiple times.
+    fn ensure_worktree(&self) -> Result<()> {
+        if self.sentinel_wt.join("HEAD").exists() {
+            // Already set up — just pull
+            let _ = self.git_wt(&["pull", "--ff-only", "origin", SENTINEL_BRANCH, "-q"]);
+            return Ok(());
+        }
+
+        // Fetch sentinel branch from origin
+        let _ = self.git(&["fetch", "origin", SENTINEL_BRANCH, "-q"]);
+
+        let origin_exists = self.git_ok(&[
+            "rev-parse", "--verify",
+            &format!("origin/{}", SENTINEL_BRANCH),
+        ]);
+
+        if !origin_exists {
+            // Create orphan sentinel branch first (push to origin)
+            // Use a temp worktree approach to avoid touching main tree
+            let tmp = self.repo.join(".git").join("claude-sentinel-tmp");
+            let _ = std::fs::remove_dir_all(&tmp);
+
+            self.git(&["worktree", "add", "--orphan",
+                "-b", SENTINEL_BRANCH,
+                tmp.to_str().context("non-utf8 path")?, "-q"])?;
+
+            // Empty commit to initialise
+            self.git_in(&tmp, &["commit", "--allow-empty",
+                "-m", "init: claude-deploy-sentinels branch", "-q"])?;
+            self.git_in(&tmp, &["push", "origin", SENTINEL_BRANCH, "-q"])?;
+
+            // Remove temp, add permanent worktree
+            self.git(&["worktree", "remove", "--force",
+                tmp.to_str().context("non-utf8 path")?])?;
+            eprintln!("  → created sentinel branch: {}", SENTINEL_BRANCH);
+        }
+
+        // Add permanent worktree tracking sentinel branch
+        self.git(&[
+            "worktree", "add",
+            self.sentinel_wt.to_str().context("non-utf8 path")?,
+            &format!("origin/{}", SENTINEL_BRANCH),
+            "-q",
+        ])?;
+
+        eprintln!("  → sentinel worktree: {}", self.sentinel_wt.display());
+        Ok(())
+    }
+
+    pub fn worker_id() -> String {
         let host = std::env::var("HOSTNAME")
-            .or_else(|_| {
+            .unwrap_or_else(|_| {
                 Command::new("hostname")
                     .output()
                     .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-                    .map_err(|_| std::env::VarError::NotPresent)
-            })
-            .unwrap_or_else(|_| "unknown".into());
+                    .unwrap_or_else(|_| "unknown".into())
+            });
         format!("{}-{}", host, std::process::id())
     }
 }
@@ -158,14 +192,21 @@ impl Backend for GitShellBackend {
 
     fn fetch_sentinel_branch(&self) -> Result<()> {
         self.git(&["fetch", "origin", SENTINEL_BRANCH, "-q"])?;
+        // Pull in worktree if it exists
+        if self.sentinel_wt.join("HEAD").exists() {
+            let _ = self.git_wt(&["pull", "--ff-only", "origin", SENTINEL_BRANCH, "-q"]);
+        }
         Ok(())
     }
 
     fn list_sentinels(&self) -> Result<Vec<String>> {
-        let out = self.git(&[
-            "ls-tree", "-r", "--name-only",
-            &format!("origin/{}", SENTINEL_BRANCH),
-        ])?;
+        // Read from worktree if available, else from origin ref
+        let out = if self.sentinel_wt.join("HEAD").exists() {
+            self.git_wt(&["ls-files"])?
+        } else {
+            self.git(&["ls-tree", "-r", "--name-only",
+                &format!("origin/{}", SENTINEL_BRANCH)])?
+        };
         Ok(out.lines()
             .filter(|l| l.starts_with("run-"))
             .map(|l| l.to_string())
@@ -173,87 +214,41 @@ impl Backend for GitShellBackend {
     }
 
     fn read_sentinel(&self, name: &str) -> Result<String> {
+        // Prefer worktree (already on disk) over git-show
+        let wt_path = self.sentinel_wt.join(name);
+        if wt_path.exists() {
+            return std::fs::read_to_string(&wt_path)
+                .with_context(|| format!("read {}", wt_path.display()));
+        }
         self.git(&["show", &format!("origin/{}:{}", SENTINEL_BRANCH, name)])
     }
 
     fn ensure_sentinel_branch(&self) -> Result<()> {
-        // Fetch to see if origin already has it
-        let _ = self.git(&["fetch", "origin", SENTINEL_BRANCH, "-q"]);
-
-        let origin_exists = self.git_ok(&[
-            "rev-parse", "--verify",
-            &format!("origin/{}", SENTINEL_BRANCH),
-        ]);
-
-        if origin_exists {
-            // Set up local tracking if missing
-            if !self.git_ok(&["rev-parse", "--verify", SENTINEL_BRANCH]) {
-                self.git(&["checkout", "--track",
-                    &format!("origin/{}", SENTINEL_BRANCH), "-q"])?;
-                let orig = self.current_branch()?;
-                self.git(&["checkout", &orig, "-q"])?;
-            }
-            return Ok(());
-        }
-
-        // Create orphan
-        let orig = self.current_branch()?;
-        self.git(&["checkout", "--orphan", SENTINEL_BRANCH, "-q"])?;
-        self.git(&["reset", "--hard", "-q"])?;
-        self.git(&["commit", "--allow-empty",
-            "-m", "init: claude-deploy-sentinels branch", "-q"])?;
-        self.git(&["push", "origin", SENTINEL_BRANCH, "-q"])?;
-        self.git(&["checkout", &orig, "-q"])?;
-        eprintln!("  → created sentinel branch: {}", SENTINEL_BRANCH);
-        Ok(())
+        self.ensure_worktree()
     }
 
     fn push_sentinel(&self, name: &str, content: &str, commit_msg: &str) -> Result<()> {
-        let orig = self.current_branch()?;
-
-        // Checkout sentinel branch
-        self.git(&["checkout", SENTINEL_BRANCH, "-q"])?;
-        self.git(&["pull", "--ff-only", "origin", SENTINEL_BRANCH, "-q"])
-            .unwrap_or_default();
-
-        // Write file
-        std::fs::write(self.sentinel_file_path(name), content)
+        self.ensure_worktree()?;
+        std::fs::write(self.sentinel_path(name), content)
             .with_context(|| format!("write sentinel {}", name))?;
-
-        self.git(&["add", name])?;
-        self.git(&["commit", "-m", commit_msg, "-q"])?;
-        self.git(&["push", "origin", SENTINEL_BRANCH, "-q"])?;
-
-        self.git(&["checkout", &orig, "-q"])?;
+        self.git_wt(&["add", name])?;
+        self.git_wt(&["commit", "-m", commit_msg, "-q"])?;
+        self.git_wt(&["push", "origin", SENTINEL_BRANCH, "-q"])?;
         Ok(())
     }
 
-    fn update_sentinel_checked_out(&self, name: &str, content: &str, commit_msg: &str) -> Result<()> {
-        std::fs::write(self.sentinel_file_path(name), content)
+    fn update_sentinel(&self, name: &str, content: &str, commit_msg: &str) -> Result<()> {
+        // Worktree must already be set up
+        std::fs::write(self.sentinel_path(name), content)
             .with_context(|| format!("write sentinel {}", name))?;
-        self.git(&["add", name])?;
-        self.git(&["commit", "-m", commit_msg, "-q"])?;
-        self.git(&["push", "origin", SENTINEL_BRANCH, "-q"])?;
+        self.git_wt(&["add", name])?;
+        self.git_wt(&["commit", "-m", commit_msg, "-q"])?;
+        self.git_wt(&["push", "origin", SENTINEL_BRANCH, "-q"])?;
         Ok(())
-    }
-
-    fn checkout(&self, branch: &str) -> Result<()> {
-        self.git(&["checkout", branch, "-q"])?;
-        Ok(())
-    }
-
-    fn pull_ff(&self, branch: &str) -> Result<()> {
-        self.git(&["pull", "--ff-only", "origin", branch, "-q"])?;
-        Ok(())
-    }
-
-    fn pull_sentinel_ff(&self) -> Result<bool> {
-        Ok(self.git_ok(&["pull", "--ff-only", "origin", SENTINEL_BRANCH, "-q"]))
     }
 
     fn claim_sentinel(&self, name: &str, worker: &str) -> Result<bool> {
-        // Read current content, patch status+worker, commit+push
-        let path = self.sentinel_file_path(name);
+        let path = self.sentinel_path(name);
         let content = std::fs::read_to_string(&path)
             .with_context(|| format!("read sentinel {}", name))?;
 
@@ -261,22 +256,21 @@ impl Backend for GitShellBackend {
             ("status", "claiming"),
             ("worker", worker),
         ]);
-
         std::fs::write(&path, &patched)?;
-        self.git(&["add", name])?;
-        self.git(&["commit", "-m",
+
+        self.git_wt(&["add", name])?;
+        self.git_wt(&["commit", "-m",
             &format!("sentinel: claiming {} [{}]", name, worker), "-q"])?;
 
-        // Push — non-ff = someone else got there first
-        if !self.git_ok(&["push", "origin", SENTINEL_BRANCH, "-q"]) {
-            // Reset to origin
-            let _ = self.git(&["reset", "--hard",
+        // Push — non-ff means another worker got there first
+        if !self.git_wt_ok(&["push", "origin", SENTINEL_BRANCH, "-q"]) {
+            let _ = self.git_wt(&["reset", "--hard",
                 &format!("origin/{}", SENTINEL_BRANCH), "-q"]);
             return Ok(false);
         }
 
-        // Re-fetch and verify our worker landed
-        let _ = self.git(&["fetch", "origin", SENTINEL_BRANCH, "-q"]);
+        // Re-fetch to verify our commit landed
+        let _ = self.git_wt(&["fetch", "origin", SENTINEL_BRANCH, "-q"]);
         Ok(true)
     }
 
@@ -290,6 +284,11 @@ impl Backend for GitShellBackend {
             .map(|s| s.trim().to_string()))
     }
 
+    fn pull_main(&self, branch: &str) -> Result<()> {
+        self.git(&["pull", "--ff-only", "origin", branch, "-q"])?;
+        Ok(())
+    }
+
     fn commit_and_push(&self, paths: &[&Path], msg: &str, branch: &str) -> Result<String> {
         for p in paths {
             self.git(&["add", p.to_str().context("non-utf8 path")?])?;
@@ -298,18 +297,13 @@ impl Backend for GitShellBackend {
         self.git(&["push", "origin", branch, "-q"])?;
         Ok(self.head_sha()?)
     }
-
-    fn origin_sha(&self, branch: &str) -> Result<String> {
-        Ok(self.git(&["rev-parse", &format!("origin/{}", branch)])?
-            .trim().to_string())
-    }
 }
 
 // ---------------------------------------------------------------------------
-// Helpers (used internally, also exported for commands)
+// Shared helpers (used by commands)
 // ---------------------------------------------------------------------------
 
-/// Patch a set of key:value fields in sentinel file content.
+/// Patch key:value fields in sentinel file content.
 /// Replaces existing keys in-place; inserts new ones before the first blank line.
 pub fn set_fields(content: &str, fields: &[(&str, &str)]) -> String {
     let mut lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
@@ -321,7 +315,6 @@ pub fn set_fields(content: &str, fields: &[(&str, &str)]) -> String {
         if let Some(i) = lines.iter().position(|l| l.starts_with(&prefix)) {
             lines[i] = new_line;
         } else {
-            // Insert before first blank line (header/body separator)
             let insert_at = lines.iter().position(|l| l.trim().is_empty())
                 .unwrap_or(lines.len());
             lines.insert(insert_at, new_line);
@@ -333,7 +326,6 @@ pub fn set_fields(content: &str, fields: &[(&str, &str)]) -> String {
     result
 }
 
-/// Worker identity string: hostname-pid
 pub fn worker_id() -> String {
     GitShellBackend::worker_id()
 }

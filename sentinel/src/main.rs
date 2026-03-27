@@ -23,7 +23,7 @@ enum Command {
         #[arg(long)] all: bool,
         #[arg(long)] log: Option<String>,
     },
-    /// Watch repo for new sentinels and run them
+    /// Watch repo for new sentinels and run them (uses git worktree, no branch switching)
     Watch {
         #[arg(long)] commands: bool,
         #[arg(long, default_value = "5")] interval: u64,
@@ -65,7 +65,7 @@ async fn main() -> Result<()> {
         Command::Create { script, capture, msg } =>
             commands::create::run(&backend, repo_path, script, capture, msg),
         Command::Reap { timeout } =>
-            commands::reap::run(&backend, timeout),
+            commands::reap::run(&backend, timeout, &repo_path),
         Command::Prune { dry_run, keep_failed, keep_success_with_ref,
                          keep_success_ephemeral, keep_abandoned, keep_reachable } =>
             commands::prune::run(&backend, dry_run, keep_failed, keep_success_with_ref,
