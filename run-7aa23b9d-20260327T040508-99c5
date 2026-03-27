@@ -1,9 +1,10 @@
-status: running
+status: success
 main-ref: 7aa23b9
 created: 2026-03-27T04:20:00
 msg: build sentinel-rust branch — cargo check + build release
 worker: nick-MacPro5-1-27724
 ran: 2026-03-27T12:05:27
+completed: 2026-03-27T12:06:43
 
 git fetch origin sentinel-rust -q
 git checkout sentinel-rust -q
@@ -11,3 +12,152 @@ git pull --ff-only origin sentinel-rust -q
 cd sentinel
 cargo check 2>&1 && echo "=== check ok ===" && cargo build --release 2>&1
 echo "=== binary ===" && ls -lh target/release/claude-sentinel 2>/dev/null || echo "not found"
+
+# --- log ---
+#    Compiling serde_core v1.0.228
+#     Checking smallvec v1.15.1
+#    Compiling serde v1.0.228
+#    Compiling syn v2.0.117
+#     Checking parking_lot_core v0.9.12
+#     Checking parking_lot v0.12.5
+#     Checking chrono v0.4.44
+#    Compiling thiserror-impl v1.0.69
+#    Compiling clap_derive v4.6.0
+#    Compiling tokio-macros v2.6.1
+#     Checking tokio v1.50.0
+#     Checking thiserror v1.0.69
+#     Checking clap v4.6.0
+#     Checking claude-deploy-sentinel v0.1.0 (/mnt/data/projects/claude-deploy-skill/sentinel)
+# warning: function `run` is never used
+#  --> src/commands/watch.rs:4:8
+#   |
+# 4 | pub fn run(_repo_path: impl AsRef<Path>, _args: ()) -> Result<()> {
+#   |        ^^^
+#   |
+#   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+# 
+# warning: function `run` is never used
+#  --> src/commands/create.rs:4:8
+#   |
+# 4 | pub fn run(_repo_path: impl AsRef<Path>, _args: ()) -> Result<()> {
+#   |        ^^^
+# 
+# warning: function `run` is never used
+#  --> src/commands/reap.rs:4:8
+#   |
+# 4 | pub fn run(_repo_path: impl AsRef<Path>, _args: ()) -> Result<()> {
+#   |        ^^^
+# 
+# warning: function `run` is never used
+#  --> src/commands/prune.rs:4:8
+#   |
+# 4 | pub fn run(_repo_path: impl AsRef<Path>, _args: ()) -> Result<()> {
+#   |        ^^^
+# 
+# warning: method `is_terminal` is never used
+#   --> src/sentinel.rs:37:12
+#    |
+# 24 | impl Status {
+#    | ----------- method in this implementation
+# ...
+# 37 |     pub fn is_terminal(&self) -> bool {
+#    |            ^^^^^^^^^^^
+# 
+# warning: method `age_secs` is never used
+#    --> src/sentinel.rs:155:12
+#     |
+#  93 | impl Sentinel {
+#     | ------------- method in this implementation
+# ...
+# 155 |     pub fn age_secs(&self) -> Option<i64> {
+#     |            ^^^^^^^^
+# 
+# warning: function `new_name` is never used
+#    --> src/sentinel.rs:223:8
+#     |
+# 223 | pub fn new_name(repo_path: &Path) -> Result<String> {
+#     |        ^^^^^^^^
+# 
+# warning: function `rand4` is never used
+#    --> src/sentinel.rs:236:4
+#     |
+# 236 | fn rand4() -> String {
+#     |    ^^^^^
+# 
+# warning: `claude-deploy-sentinel` (bin "claude-sentinel") generated 8 warnings
+#     Finished `dev` profile [unoptimized + debuginfo] target(s) in 13.05s
+# === check ok ===
+#    Compiling serde_core v1.0.228
+#    Compiling serde v1.0.228
+#    Compiling smallvec v1.15.1
+#    Compiling syn v2.0.117
+#    Compiling parking_lot_core v0.9.12
+#    Compiling parking_lot v0.12.5
+#    Compiling thiserror-impl v1.0.69
+#    Compiling clap_derive v4.6.0
+#    Compiling tokio-macros v2.6.1
+#    Compiling chrono v0.4.44
+#    Compiling tokio v1.50.0
+#    Compiling thiserror v1.0.69
+#    Compiling clap v4.6.0
+#    Compiling claude-deploy-sentinel v0.1.0 (/mnt/data/projects/claude-deploy-skill/sentinel)
+# warning: function `run` is never used
+#  --> src/commands/watch.rs:4:8
+#   |
+# 4 | pub fn run(_repo_path: impl AsRef<Path>, _args: ()) -> Result<()> {
+#   |        ^^^
+#   |
+#   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+# 
+# warning: function `run` is never used
+#  --> src/commands/create.rs:4:8
+#   |
+# 4 | pub fn run(_repo_path: impl AsRef<Path>, _args: ()) -> Result<()> {
+#   |        ^^^
+# 
+# warning: function `run` is never used
+#  --> src/commands/reap.rs:4:8
+#   |
+# 4 | pub fn run(_repo_path: impl AsRef<Path>, _args: ()) -> Result<()> {
+#   |        ^^^
+# 
+# warning: function `run` is never used
+#  --> src/commands/prune.rs:4:8
+#   |
+# 4 | pub fn run(_repo_path: impl AsRef<Path>, _args: ()) -> Result<()> {
+#   |        ^^^
+# 
+# warning: method `is_terminal` is never used
+#   --> src/sentinel.rs:37:12
+#    |
+# 24 | impl Status {
+#    | ----------- method in this implementation
+# ...
+# 37 |     pub fn is_terminal(&self) -> bool {
+#    |            ^^^^^^^^^^^
+# 
+# warning: method `age_secs` is never used
+#    --> src/sentinel.rs:155:12
+#     |
+#  93 | impl Sentinel {
+#     | ------------- method in this implementation
+# ...
+# 155 |     pub fn age_secs(&self) -> Option<i64> {
+#     |            ^^^^^^^^
+# 
+# warning: function `new_name` is never used
+#    --> src/sentinel.rs:223:8
+#     |
+# 223 | pub fn new_name(repo_path: &Path) -> Result<String> {
+#     |        ^^^^^^^^
+# 
+# warning: function `rand4` is never used
+#    --> src/sentinel.rs:236:4
+#     |
+# 236 | fn rand4() -> String {
+#     |    ^^^^^
+# 
+# warning: `claude-deploy-sentinel` (bin "claude-sentinel") generated 8 warnings
+#     Finished `release` profile [optimized] target(s) in 44.13s
+# === binary ===
+# -rwxrwxr-x 2 nick nick 858K Mar 27 12:06 target/release/claude-sentinel
