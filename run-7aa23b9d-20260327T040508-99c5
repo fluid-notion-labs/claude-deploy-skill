@@ -1,0 +1,11 @@
+status: new
+main-ref: 7aa23b9
+created: 2026-03-27T04:20:00
+msg: build sentinel-rust branch — cargo check + build release
+
+git fetch origin sentinel-rust -q
+git checkout sentinel-rust -q
+git pull --ff-only origin sentinel-rust -q
+cd sentinel
+cargo check 2>&1 && echo "=== check ok ===" && cargo build --release 2>&1
+echo "=== binary ===" && ls -lh target/release/claude-sentinel 2>/dev/null || echo "not found"
