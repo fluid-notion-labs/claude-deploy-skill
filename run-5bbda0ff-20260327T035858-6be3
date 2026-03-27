@@ -1,0 +1,13 @@
+status: new
+main-ref: 5bbda0f
+created: 2026-03-27T04:00:00
+msg: build claude-sentinel — cargo check + build release
+
+cd sentinel
+echo "=== cargo check ==="
+cargo check 2>&1
+echo "=== cargo build release ==="
+cargo build --release 2>&1
+echo "=== binary ==="
+ls -lh target/release/claude-sentinel 2>/dev/null || echo "binary not found"
+echo "=== done ==="
