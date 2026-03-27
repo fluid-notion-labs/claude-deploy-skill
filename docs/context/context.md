@@ -14,7 +14,7 @@
 claude-deploy setup    [--org <n>]                  # configure App ID + ingest PEM
 claude-deploy token    [<owner/repo>] [--org <n>]   # get ephemeral token → clipboard (infers repo from cwd)
 claude-deploy handover [<owner/repo>] [--org <n>]   # full session blob → clipboard (embeds context.md)
-claude-deploy watch    [--commands]                  # poll cwd repo every 5s; --commands runs sentinels
+claude-deploy watch    [--no-commands]              # poll cwd repo every 5s; runs sentinels by default
 claude-deploy queue    [--all] [--log <name>]        # list sentinels; --all includes completed; --log dumps execution log
 claude-deploy open     [--org <n>]                   # xdg-open GitHub App install settings
 claude-deploy update                                 # self-update from main branch
@@ -184,28 +184,15 @@ Next up:
 
 ## Open
 
-- `prune` delete — **done**: `delete_sentinels(&[names])` on `Backend` trait + `GitShellBackend` impl, wired into `prune` command
 - sentinel `main-ref` checkout semantics (deferred)
 - `parse_profile` globals — `$PROFILE` and `$POSITIONAL[]` intentionally global; documented
 
 ## Done (this session)
 
-- `prune` delete implemented: `delete_sentinels(&[&str])` on `Backend` trait + `GitShellBackend`; pulls worktree, `git rm`s files, single commit + push; wired into prune replacing the TODO stub
-- watch spinner dropped — `claude-deploy-sentinel` is now primary runner
-- `claude-deploy-sentinel` Rust binary working end-to-end — watch, claim, run, log, worktree
-- worktree detached HEAD detection + repair on startup
-- `git worktree prune` before add — fixes stale registration errors
-- reads always via `origin/` ref (never stale disk) — fixes watch seeing already-completed sentinels as new
-- claim pulls worktree first + re-checks status before claiming
-- binary name fixed to `claude-deploy-sentinel` throughout
-- sentinel crate `.gitignore` added (target/, Cargo.lock)
-- `wait-for-push.sh --sentinel` mode proven working
-
-- bash completion: detects if bash-completion installed, warns with steps if not
-- sentinel hardening: optimistic claim (`status: claiming` + `worker` field), abandoned reaper, `_sentinel_branch_ensure` fixes, `_sentinel_set_field` corruption fix (python3 insert), main-branch safety guard, capture push safety
-- sentinel unique filenames: `run-<ref8>-<ts>-<rand4>`, `_sentinel_new_name` helper, `od` instead of `xxd`
-- `queue` command (bash): sentinel table with status icons, `--all`, `--log`, completion
-- `wait-for-push.sh`: `--sentinel <name>` mode streams status + prints log on completion; `--branch` flag
-- `claude-deploy-sentinel` Rust crate scaffolded: `Backend` trait, `GitShellBackend`, worktree-based sentinel ops (no branch switching — `.git/claude-sentinel-wt/`), `queue`/`watch`/`create`/`reap`/`prune` commands
-- binary name fixed to `claude-deploy-sentinel`
-- merged `sentinel-hardening` → `main`; working on `sentinel-rust` branch
+- `pull_worktree_clean()`: auto-commit dirty worktree before pull — fixes Cargo.lock / stray file errors
+- `watch --commands` now default; use `--no-commands` to disable sentinel execution
+- worktree `remove --force` before `add` — fixes "already used by worktree" error on restart
+- `pull_main` moved to top of sentinel loop (before claim) — sentinels always run against latest main
+- `scripts/dev-install.sh`: pulls latest, installs `claude-deploy` to `~/.local/bin`, `cargo install`s sentinel binary
+- `bin/` removed — captured binary superseded by `cargo install --path sentinel`
+- smoke test sentinel proven end-to-end: claim→run→log→success pipeline working
