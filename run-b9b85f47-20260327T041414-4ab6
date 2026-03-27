@@ -1,0 +1,8 @@
+status: new
+main-ref: b9b85f4
+created: 2026-03-27T04:30:00
+msg: cargo check — backend trait refactor
+
+cd sentinel
+cargo check 2>&1
+echo "exit: $?"
