@@ -586,22 +586,33 @@ cmd_update() {
 
 
 # Sentinel branch name — all sentinel files live here, never on main
+
+# Sentinel branch name — all sentinel files live here, never on main
 SENTINEL_BRANCH="claude-deploy-sentinels"
 
+# How long (seconds) before a stuck "running" sentinel is marked abandoned
+SENTINEL_RUNNING_TIMEOUT=${CLAUDE_DEPLOY_SENTINEL_TIMEOUT:-600}
+
+# Worker identity for optimistic locking (hostname + PID)
+_sentinel_worker() { echo "${HOSTNAME:-$(hostname 2>/dev/null || echo host)}-$$"; }
+
 # Parse a sentinel file into variables.
-# Sets: s_status, s_main_ref, s_created, s_cmd, s_capture, s_msg, s_script_body
+# Sets: s_status, s_main_ref, s_created, s_cmd, s_capture, s_msg, s_worker, s_ran, s_script_body
 _sentinel_parse() {
     local file="$1"
-    s_status="" s_main_ref="" s_created="" s_cmd="" s_capture="" s_msg="" s_script_body=""
+    s_status="" s_main_ref="" s_created="" s_cmd="" s_capture="" s_msg="" \
+        s_worker="" s_ran="" s_script_body=""
     local in_body=0
     while IFS= read -r line; do
         if [[ $in_body -eq 0 ]]; then
-            if   [[ "$line" =~ ^status:[[:space:]]*(.+)$   ]]; then s_status="${BASH_REMATCH[1]}"
-            elif [[ "$line" =~ ^main-ref:[[:space:]]*(.+)$ ]]; then s_main_ref="${BASH_REMATCH[1]}"
-            elif [[ "$line" =~ ^created:[[:space:]]*(.+)$  ]]; then s_created="${BASH_REMATCH[1]}"
-            elif [[ "$line" =~ ^cmd:[[:space:]]*(.+)$      ]]; then s_cmd="${BASH_REMATCH[1]}"
-            elif [[ "$line" =~ ^capture:[[:space:]]*(.+)$  ]]; then s_capture="${BASH_REMATCH[1]}"
-            elif [[ "$line" =~ ^msg:[[:space:]]*(.+)$      ]]; then s_msg="${BASH_REMATCH[1]}"
+            if   [[ "$line" =~ ^status:[[:space:]]*(.+)$    ]]; then s_status="${BASH_REMATCH[1]}"
+            elif [[ "$line" =~ ^main-ref:[[:space:]]*(.+)$  ]]; then s_main_ref="${BASH_REMATCH[1]}"
+            elif [[ "$line" =~ ^created:[[:space:]]*(.+)$   ]]; then s_created="${BASH_REMATCH[1]}"
+            elif [[ "$line" =~ ^cmd:[[:space:]]*(.+)$       ]]; then s_cmd="${BASH_REMATCH[1]}"
+            elif [[ "$line" =~ ^capture:[[:space:]]*(.+)$   ]]; then s_capture="${BASH_REMATCH[1]}"
+            elif [[ "$line" =~ ^msg:[[:space:]]*(.+)$       ]]; then s_msg="${BASH_REMATCH[1]}"
+            elif [[ "$line" =~ ^worker:[[:space:]]*(.+)$    ]]; then s_worker="${BASH_REMATCH[1]}"
+            elif [[ "$line" =~ ^ran:[[:space:]]*(.+)$       ]]; then s_ran="${BASH_REMATCH[1]}"
             elif [[ -z "$line" ]]; then in_body=1
             fi
         else
@@ -611,14 +622,21 @@ _sentinel_parse() {
 }
 
 # Update a field in a sentinel file in-place.
-# Usage: _sentinel_set_field <file> <key> <value>
+# If the key exists, replace it. If not, insert before the first blank line
+# (the header/body separator) — never overwrite the blank line itself.
 _sentinel_set_field() {
     local file="$1" key="$2" val="$3"
     if grep -q "^${key}:" "$file"; then
         sed -i "s|^${key}:.*|${key}: ${val}|" "$file"
     else
-        # Insert after last header line (before blank line / body)
-        sed -i "/^$/{ s/^$/${key}: ${val}\n/; b; }" "$file"
+        python3 - "$file" "$key" "$val" <<'PYEOF'
+import sys
+path, key, val = sys.argv[1], sys.argv[2], sys.argv[3]
+lines = open(path).readlines()
+insert_at = next((i for i, l in enumerate(lines) if l.strip() == ""), len(lines))
+lines.insert(insert_at, f"{key}: {val}\n")
+open(path, "w").writelines(lines)
+PYEOF
     fi
 }
 
@@ -629,37 +647,159 @@ _sentinel_branch_ensure() {
     local orig_branch
     orig_branch=$(git -C "$repo" rev-parse --abbrev-ref HEAD)
 
-    if ! git -C "$repo" rev-parse --verify "$SENTINEL_BRANCH" &>/dev/null; then
-        # Create as orphan so it has no relation to main history
-        git -C "$repo" checkout --orphan "$SENTINEL_BRANCH" -q
-        git -C "$repo" reset --hard -q
-        git -C "$repo" commit --allow-empty -m "init: claude-deploy-sentinels branch" -q
-        git -C "$repo" push origin "$SENTINEL_BRANCH" -q
-        git -C "$repo" checkout "$orig_branch" -q
-        echo "  → created sentinel branch: $SENTINEL_BRANCH" >&2
+    # Fetch remote first — may already exist on origin
+    git -C "$repo" fetch origin "$SENTINEL_BRANCH" -q 2>/dev/null || true
+
+    if git -C "$repo" rev-parse --verify "origin/$SENTINEL_BRANCH" &>/dev/null; then
+        # Remote exists — set up local tracking branch if missing
+        if ! git -C "$repo" rev-parse --verify "$SENTINEL_BRANCH" &>/dev/null; then
+            git -C "$repo" checkout --track "origin/$SENTINEL_BRANCH" -q
+            git -C "$repo" checkout "$orig_branch" -q
+        fi
+        return
     fi
+
+    # Neither local nor remote exists — create orphan
+    git -C "$repo" checkout --orphan "$SENTINEL_BRANCH" -q
+    git -C "$repo" reset --hard -q
+    git -C "$repo" commit --allow-empty -m "init: claude-deploy-sentinels branch" -q
+    git -C "$repo" push origin "$SENTINEL_BRANCH" -q
+    git -C "$repo" checkout "$orig_branch" -q
+    echo "  → created sentinel branch: $SENTINEL_BRANCH" >&2
 }
 
-# Run a single sentinel file. Called from watch loop.
-# Usage: _sentinel_run <repo> <main_branch> <sentinel_file>
+# Attempt to claim a sentinel via optimistic push.
+# Writes status:claiming + worker, pushes. Re-fetches to verify we own it.
+# Returns 0 if claimed, 1 if another worker got it first.
+# Precondition: sentinel branch is checked out and up to date.
+_sentinel_claim() {
+    local repo="$1" sentinel_file="$2"
+    local worker
+    worker=$(_sentinel_worker)
+
+    _sentinel_set_field "$sentinel_file" "status" "claiming"
+    _sentinel_set_field "$sentinel_file" "worker" "$worker"
+    git -C "$repo" add "$sentinel_file"
+    git -C "$repo" commit -m "sentinel: claiming $(basename "$sentinel_file") [$worker]" -q
+
+    # Attempt push — fails non-ff if another watcher pushed first
+    if ! git -C "$repo" push origin "$SENTINEL_BRANCH" -q 2>/dev/null; then
+        git -C "$repo" reset --hard "origin/$SENTINEL_BRANCH" -q 2>/dev/null || true
+        return 1
+    fi
+
+    # Verify our commit landed on origin (handles simultaneous push edge case)
+    git -C "$repo" fetch origin "$SENTINEL_BRANCH" -q 2>/dev/null || true
+    local origin_worker
+    origin_worker=$(git -C "$repo" show "origin/$SENTINEL_BRANCH:$(basename "$sentinel_file")" 2>/dev/null \
+        | grep "^worker:" | head -1 | sed 's/^worker:[[:space:]]*//')
+
+    if [[ "$origin_worker" != "$worker" ]]; then
+        git -C "$repo" pull --ff-only origin "$SENTINEL_BRANCH" -q 2>/dev/null || true
+        return 1
+    fi
+
+    return 0
+}
+
+# Check for sentinels stuck in running/claiming and mark them abandoned.
+# Safe to call from any watcher — uses optimistic push to avoid double-abandon.
+_sentinel_reap_abandoned() {
+    local repo="$1"
+    local now
+    now=$(date '+%s')
+
+    local all_sentinels
+    all_sentinels=$(git -C "$repo" ls-tree -r --name-only "origin/$SENTINEL_BRANCH" 2>/dev/null \
+        | grep "^run-" || true)
+    [[ -z "$all_sentinels" ]] && return
+
+    local orig_branch
+    orig_branch=$(git -C "$repo" rev-parse --abbrev-ref HEAD)
+
+    while IFS= read -r sname; do
+        local content
+        content=$(git -C "$repo" show "origin/$SENTINEL_BRANCH:$sname" 2>/dev/null) || continue
+        local status ran
+        status=$(grep "^status:" <<< "$content" | head -1 | sed 's/^status:[[:space:]]*//')
+        [[ "$status" != "running" && "$status" != "claiming" ]] && continue
+
+        ran=$(grep "^ran:" <<< "$content" | head -1 | sed 's/^ran:[[:space:]]*//')
+        [[ -z "$ran" ]] && ran=$(grep "^created:" <<< "$content" | head -1 | sed 's/^created:[[:space:]]*//')
+        [[ -z "$ran" ]] && continue
+
+        local ran_epoch
+        ran_epoch=$(date -d "$ran" '+%s' 2>/dev/null \
+            || date -j -f '%Y-%m-%dT%H:%M:%S' "$ran" '+%s' 2>/dev/null \
+            || echo 0)
+        local age=$(( now - ran_epoch ))
+
+        if [[ $age -gt $SENTINEL_RUNNING_TIMEOUT ]]; then
+            local prev_worker
+            prev_worker=$(grep "^worker:" <<< "$content" | head -1 | sed 's/^worker:[[:space:]]*//')
+            echo "  ⚠  sentinel stuck >$(( SENTINEL_RUNNING_TIMEOUT / 60 ))m [$prev_worker]: $sname — abandoning" >&2
+
+            git -C "$repo" checkout "$SENTINEL_BRANCH" -q
+            git -C "$repo" pull --ff-only origin "$SENTINEL_BRANCH" -q 2>/dev/null || {
+                git -C "$repo" checkout "$orig_branch" -q
+                continue
+            }
+
+            local sentinel_file="$repo/$sname"
+            _sentinel_set_field "$sentinel_file" "status" "abandoned"
+            _sentinel_set_field "$sentinel_file" "abandoned" "$(date '+%Y-%m-%dT%H:%M:%S')"
+            {
+                echo ""
+                echo "# --- abandoned ---"
+                echo "# Marked abandoned after ${age}s. Previous worker: ${prev_worker:-(unknown)}"
+            } >> "$sentinel_file"
+
+            git -C "$repo" add "$sentinel_file"
+            git -C "$repo" commit -m "sentinel: abandoned $sname (stuck ${age}s)" -q
+            # Best-effort push — if we race, another watcher already handled it
+            git -C "$repo" push origin "$SENTINEL_BRANCH" -q 2>/dev/null \
+                || git -C "$repo" reset --hard "origin/$SENTINEL_BRANCH" -q 2>/dev/null || true
+
+            git -C "$repo" checkout "$orig_branch" -q
+        fi
+    done <<< "$all_sentinels"
+}
+
+# Run a single sentinel. Called after claim is secured.
+# Precondition: sentinel branch checked out, claim pushed, main_branch != sentinel branch.
 _sentinel_run() {
     local repo="$1" main_branch="$2" sentinel_file="$3"
     local ts
     ts=$(date '+%Y-%m-%dT%H:%M:%S')
+
+    # Safety guard: refuse if main_branch is the sentinel branch
+    if [[ "$main_branch" == "$SENTINEL_BRANCH" ]]; then
+        echo "  ✗ BUG: main_branch is sentinel branch — refusing to prevent corruption" >&2
+        _sentinel_set_field "$sentinel_file" "status" "failure"
+        _sentinel_set_field "$sentinel_file" "completed" "$ts"
+        {
+            echo ""
+            echo "# --- log ---"
+            echo "# ERROR: main_branch resolved to sentinel branch. Aborting."
+        } >> "$sentinel_file"
+        git -C "$repo" add "$sentinel_file"
+        git -C "$repo" commit -m "sentinel: failure (safety) $(basename "$sentinel_file")" -q
+        git -C "$repo" push origin "$SENTINEL_BRANCH" -q 2>/dev/null || true
+        return 1
+    fi
 
     _sentinel_parse "$sentinel_file"
 
     echo "  → running sentinel: $(basename "$sentinel_file")"
     echo "     main-ref: $s_main_ref  capture: ${s_capture:-(none)}"
 
-    # Mark running
+    # Transition: claiming → running
     _sentinel_set_field "$sentinel_file" "status" "running"
     _sentinel_set_field "$sentinel_file" "ran" "$ts"
     git -C "$repo" add "$sentinel_file"
     git -C "$repo" commit -m "sentinel: running $(basename "$sentinel_file")" -q
     git -C "$repo" push origin "$SENTINEL_BRANCH" -q
 
-    # Write and run script from main branch worktree
     local tmpscript run_log exit_ok
     tmpscript=$(mktemp /tmp/claude-run-XXXXXX.sh)
     run_log=$(mktemp /tmp/claude-run-log-XXXXXX.txt)
@@ -671,8 +811,10 @@ _sentinel_run() {
     } > "$tmpscript"
     chmod +x "$tmpscript"
 
-    # Switch to main to run (capture lands in main worktree)
+    # Checkout main and pull latest before running
     git -C "$repo" checkout "$main_branch" -q
+    git -C "$repo" pull --ff-only origin "$main_branch" -q 2>/dev/null \
+        || echo "  ⚠  could not pull main before run — proceeding on current HEAD" >&2
 
     if bash "$tmpscript" 2>&1 | tee "$run_log"; then
         exit_ok=1
@@ -685,18 +827,29 @@ _sentinel_run() {
 
     local result_ref=""
 
-    # If capture dir specified, commit results to main
-    if [[ -n "$s_capture" && -d "$repo/$s_capture" ]]; then
-        git -C "$repo" add "$repo/$s_capture"
-        local commit_msg="${s_msg:-sentinel results: $(basename "$sentinel_file")}"
-        git -C "$repo" commit -m "$commit_msg" -q || true
-        git -C "$repo" push origin "$main_branch" -q
-        result_ref=$(git -C "$repo" rev-parse HEAD)
-        echo "  → captured to main: $commit_msg ($( echo "$result_ref" | cut -c1-8))"
+    if [[ -n "$s_capture" ]]; then
+        if [[ -d "$repo/$s_capture" ]]; then
+            git -C "$repo" add "$repo/$s_capture"
+            local commit_msg="${s_msg:-sentinel results: $(basename "$sentinel_file")}"
+            if git -C "$repo" commit -m "$commit_msg" -q 2>/dev/null; then
+                if git -C "$repo" push origin "$main_branch" -q 2>/dev/null; then
+                    result_ref=$(git -C "$repo" rev-parse HEAD)
+                    echo "  → captured to main: $commit_msg (${result_ref:0:8})"
+                else
+                    echo "  ⚠  capture committed but push to main failed — run: git -C $repo push origin $main_branch" >&2
+                fi
+            else
+                echo "  ℹ  capture: nothing new to commit in $s_capture" >&2
+            fi
+        else
+            echo "  ⚠  capture dir not found: $repo/$s_capture" >&2
+        fi
     fi
 
-    # Switch back to sentinel branch, update status
+    # Back to sentinel branch to write outcome
     git -C "$repo" checkout "$SENTINEL_BRANCH" -q
+    git -C "$repo" pull --ff-only origin "$SENTINEL_BRANCH" -q 2>/dev/null \
+        || echo "  ⚠  could not pull sentinel branch before writing outcome" >&2
 
     local final_status
     [[ $exit_ok -eq 1 ]] && final_status="success" || final_status="failure"
@@ -705,7 +858,6 @@ _sentinel_run() {
     _sentinel_set_field "$sentinel_file" "completed" "$(date '+%Y-%m-%dT%H:%M:%S')"
     [[ -n "$result_ref" ]] && _sentinel_set_field "$sentinel_file" "result-ref" "$result_ref"
 
-    # Append log
     {
         echo ""
         echo "# --- log ---"
@@ -718,111 +870,7 @@ _sentinel_run() {
     git -C "$repo" push origin "$SENTINEL_BRANCH" -q
 
     echo "  → sentinel $final_status ✓"
-
-    # Return to main
     git -C "$repo" checkout "$main_branch" -q
-}
-
-# Print the queue of sentinels from the sentinel branch.
-# Reads via git show — no branch checkout required.
-# Usage: cmd_queue [--log <sentinel-name>] [--all]
-#   --log <n>   dump full execution log for a named sentinel
-#   --all        include completed sentinels (default: pending + running only)
-cmd_queue() {
-    local log_target="" show_all=0
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --log) log_target="$2"; shift 2 ;;
-            --all) show_all=1; shift ;;
-            *) shift ;;
-        esac
-    done
-
-    local repo="${PWD}"
-    if [[ ! -d "$repo/.git" ]]; then
-        echo "Error: not a git repo: $repo" >&2
-        exit 1
-    fi
-
-    # Fetch sentinel branch quietly — fail gracefully if it doesn't exist yet
-    if ! git -C "$repo" fetch origin "$SENTINEL_BRANCH" -q 2>/dev/null; then
-        echo "No sentinel branch found. Run 'claude-deploy watch --commands' to initialise." >&2
-        exit 0
-    fi
-
-    # List all sentinel files on the branch (remote ref — no checkout)
-    local sentinel_names
-    sentinel_names=$(git -C "$repo" ls-tree -r --name-only "origin/$SENTINEL_BRANCH" 2>/dev/null \
-        | grep "^run-" | sort || true)
-
-    if [[ -z "$sentinel_names" ]]; then
-        echo "Queue is empty." >&2
-        exit 0
-    fi
-
-    # --log mode: dump log for one sentinel
-    if [[ -n "$log_target" ]]; then
-        # Accept bare name or full name
-        local match
-        match=$(grep -F "$log_target" <<< "$sentinel_names" | head -1)
-        if [[ -z "$match" ]]; then
-            echo "Sentinel not found: $log_target" >&2
-            exit 1
-        fi
-        local content
-        content=$(git -C "$repo" show "origin/$SENTINEL_BRANCH:$match" 2>/dev/null)
-        # Print header fields
-        grep -E "^(status|main-ref|created|ran|completed|result-ref|capture|msg):" <<< "$content" || true
-        echo ""
-        # Print script body (between blank line and log marker)
-        awk '/^$/{found=1; next} found && /^# --- log ---/{exit} found{print}' <<< "$content"
-        echo ""
-        # Print log section
-        if grep -q "^# --- log ---" <<< "$content"; then
-            echo "--- execution log ---"
-            awk '/^# --- log ---/{found=1; next} found{sub(/^# ?/,""); print}' <<< "$content"
-        else
-            echo "(no log yet)"
-        fi
-        return
-    fi
-
-    # Table mode
-    # Columns: status  name  created  main-ref  result-ref  msg
-    local status_icon name created main_ref result_ref msg status
-
-    # Header
-    printf "%-10s %-36s %-19s %-8s %-8s %s\n" \
-        "STATUS" "SENTINEL" "CREATED" "REF" "RESULT" "MSG"
-    printf "%-10s %-36s %-19s %-8s %-8s %s\n" \
-        "----------" "------------------------------------" "-------------------" "--------" "--------" "---"
-
-    while IFS= read -r sname; do
-        local content
-        content=$(git -C "$repo" show "origin/$SENTINEL_BRANCH:$sname" 2>/dev/null) || continue
-
-        status=$(grep "^status:" <<< "$content" | head -1 | sed 's/^status:[[:space:]]*//')
-        created=$(grep "^created:" <<< "$content" | head -1 | sed 's/^created:[[:space:]]*//')
-        main_ref=$(grep "^main-ref:" <<< "$content" | head -1 | sed 's/^main-ref:[[:space:]]*//' | cut -c1-8)
-        result_ref=$(grep "^result-ref:" <<< "$content" | head -1 | sed 's/^result-ref:[[:space:]]*//' | cut -c1-8)
-        msg=$(grep "^msg:" <<< "$content" | head -1 | sed 's/^msg:[[:space:]]*//')
-
-        # Filter: skip completed unless --all
-        if [[ $show_all -eq 0 && "$status" != "new" && "$status" != "running" ]]; then
-            continue
-        fi
-
-        case "$status" in
-            new)     status_icon="⏳ new    " ;;
-            running) status_icon="⚡ running" ;;
-            success) status_icon="✅ success" ;;
-            failure) status_icon="❌ failure" ;;
-            *)       status_icon="?  $status" ;;
-        esac
-
-        printf "%-10s %-36s %-19s %-8s %-8s %s\n" \
-            "$status_icon" "$sname" "${created:--}" "${main_ref:--}" "${result_ref:--}" "${msg:-(no msg)}"
-    done <<< "$sentinel_names"
 }
 
 cmd_watch() {
@@ -841,63 +889,81 @@ cmd_watch() {
 
     local branch
     branch=$(git -C "$repo" rev-parse --abbrev-ref HEAD)
+
+    # Guard: refuse to watch from the sentinel branch
+    if [[ "$branch" == "$SENTINEL_BRANCH" ]]; then
+        echo "Error: started from sentinel branch — checkout your working branch first" >&2
+        exit 1
+    fi
+
     local mode_label=""
     [[ $commands_mode -eq 1 ]] && mode_label=" [--commands]"
     echo "Watching $repo [$branch]${mode_label} (every ${interval}s) — Ctrl-C to stop"
 
-    # Ensure sentinel branch exists if in commands mode
     [[ $commands_mode -eq 1 ]] && _sentinel_branch_ensure "$repo"
+
+    local last_main_ref
+    last_main_ref=$(git -C "$repo" rev-parse HEAD 2>/dev/null)
 
     while true; do
         local ts
         ts=$(date '+%H:%M:%S')
 
         if [[ $commands_mode -eq 1 ]]; then
-            # Fetch sentinel branch and check for status:new — fast grep, no checkout
             git -C "$repo" fetch origin "$SENTINEL_BRANCH" -q 2>/dev/null
 
-            # Get list of sentinel files with status: new from remote branch
-            local new_sentinels
-            new_sentinels=$(git -C "$repo" ls-tree -r --name-only "origin/$SENTINEL_BRANCH" 2>/dev/null \
-                | grep "^run-" || true)
+            # Reap stuck sentinels
+            _sentinel_reap_abandoned "$repo"
 
-            if [[ -n "$new_sentinels" ]]; then
+            local all_sentinels
+            all_sentinels=$(git -C "$repo" ls-tree -r --name-only "origin/$SENTINEL_BRANCH" 2>/dev/null \
+                | grep "^run-" | sort || true)
+
+            if [[ -n "$all_sentinels" ]]; then
                 while IFS= read -r sentinel_name; do
-                    # Check status without full checkout
-                    local status
-                    status=$(git -C "$repo" show "origin/$SENTINEL_BRANCH:$sentinel_name" \
+                    local sentinel_status
+                    sentinel_status=$(git -C "$repo" show "origin/$SENTINEL_BRANCH:$sentinel_name" 2>/dev/null \
                         | grep "^status:" | head -1 | sed 's/^status:[[:space:]]*//')
-                    if [[ "$status" == "new" ]]; then
+
+                    if [[ "$sentinel_status" == "new" ]]; then
                         echo "[$ts] ⚡ sentinel: $sentinel_name"
-                        # Pull sentinel branch
+
                         git -C "$repo" checkout "$SENTINEL_BRANCH" -q
-                        git -C "$repo" pull --ff-only origin "$SENTINEL_BRANCH" -q
+                        if ! git -C "$repo" pull --ff-only origin "$SENTINEL_BRANCH" -q 2>/dev/null; then
+                            echo "  ⚠  sentinel branch pull failed — skipping $sentinel_name" >&2
+                            git -C "$repo" checkout "$branch" -q
+                            continue
+                        fi
+
+                        if ! _sentinel_claim "$repo" "$repo/$sentinel_name"; then
+                            echo "  ℹ  $sentinel_name claimed by another worker — skipping" >&2
+                            git -C "$repo" checkout "$branch" -q
+                            continue
+                        fi
+
                         _sentinel_run "$repo" "$branch" "$repo/$sentinel_name"
                         ts=$(date '+%H:%M:%S')
                         echo "[$ts] ✓ done"
                     fi
-                done <<< "$new_sentinels"
+                done <<< "$all_sentinels"
             fi
         fi
 
-        # Also watch main branch for new commits
-        local before after
-        before=$(git -C "$repo" rev-parse HEAD 2>/dev/null)
+        # Watch main — take ref after sentinel work to avoid stale before/after
         git -C "$repo" pull --ff-only origin "$branch" -q 2>/dev/null
+        local after
         after=$(git -C "$repo" rev-parse HEAD 2>/dev/null)
 
-        if [[ "$before" != "$after" ]]; then
-            local msg
-            msg=$(git -C "$repo" log --oneline -1)
-            echo "[$ts] ✓ $msg"
-        else
-            echo "[$ts] — $(git -C "$repo" rev-parse --short HEAD 2>/dev/null) (no change)"
+        if [[ "$last_main_ref" != "$after" ]]; then
+            local new_commits
+            new_commits=$(git -C "$repo" log --oneline "${last_main_ref}..${after}" 2>/dev/null | head -5)
+            echo "[$ts] ✓ main: $new_commits"
+            last_main_ref="$after"
         fi
 
         sleep "$interval"
     done
 }
-
 # Skip dispatch when sourced for unit tests
 if [[ "${CLAUDE_DEPLOY_TEST:-0}" != "1" ]]; then
 case "$COMMAND" in
