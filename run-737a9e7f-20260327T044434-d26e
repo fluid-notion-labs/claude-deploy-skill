@@ -1,11 +1,18 @@
-status: running
+status: success
 main-ref: 737a9e7
 created: 2026-03-27T06:00:00
 msg: rust watch end-to-end test
 worker: nick-MacPro5-1-51503
 ran: 2026-03-27T04:45:02
+completed: 2026-03-27T04:45:11
 
 echo "=== all good ==="
 echo "branch: $(git rev-parse --abbrev-ref HEAD)"
 echo "date: $(date)"
 echo "=== done ==="
+
+# --- log ---
+# === all good ===
+# branch: main
+# date: Fri Mar 27 12:45:11 AWST 2026
+# === done ===
