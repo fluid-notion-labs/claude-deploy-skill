@@ -122,16 +122,18 @@ impl GitShellBackend {
             // Already set up — check we are on the branch (not detached), then pull
             let head = self.git_wt(&["symbolic-ref", "--short", "HEAD"])
                 .unwrap_or_default();
-            if head.trim() != SENTINEL_BRANCH {
-                // Detached — remove and recreate
-                eprintln!("  → worktree in detached state, recreating...");
-                let _ = self.git(&["worktree", "remove", "--force",
-                    self.sentinel_wt.to_str().unwrap_or(".")]);
-            } else {
+            if head.trim() == SENTINEL_BRANCH {
                 let _ = self.git_wt(&["pull", "--ff-only", "origin", SENTINEL_BRANCH, "-q"]);
                 return Ok(());
             }
+            // Detached or wrong branch — remove, prune, recreate
+            eprintln!("  → worktree in detached state, recreating...");
+            let _ = self.git(&["worktree", "remove", "--force",
+                self.sentinel_wt.to_str().unwrap_or(".")]);
         }
+
+        // Always prune stale registrations before adding
+        let _ = self.git(&["worktree", "prune"]);
 
         // Fetch sentinel branch from origin
         let _ = self.git(&["fetch", "origin", SENTINEL_BRANCH, "-q"]);
