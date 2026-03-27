@@ -156,6 +156,8 @@ Next up:
 
 - `parse_profile` globals — `$PROFILE` and `$POSITIONAL[]` are intentionally global (infer functions mutate PROFILE post-parse); documented with comment in script
 - `watch --commands` sentinel spam bug — sentinel commits are landing on main branch instead of staying on `claude-deploy-sentinels`. Root cause not yet confirmed but likely: `_sentinel_run` checks out main to run the script (line 653), and if `s_capture` path exists it commits+pushes to main (line 671) — that part is intentional. But the sentinel status updates (running/success/failure) should only ever touch the sentinel branch. Need to audit whether any sentinel state write is accidentally targeting main. Also: the `— no change` heartbeat line prints every 5s tick unconditionally — should suppress and only print on change or every ~60s.
+- `watch` spinner — replace per-tick `— no change` echo with an in-place spinner (`\r` overwrite, frames `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`). Only break to a new line on actual events (new commit, sentinel fired). Keeps terminal clean during long idle periods.
+- `queue` command — reads sentinel branch (no checkout, via `git show origin/claude-deploy-sentinels:...`) and prints a table of sentinels with status, created timestamp, and first line of script body. Add `--log <sentinel-name>` flag to dump full log output for a completed sentinel. Useful for Claude to check on queued commands without switching branches.
 
 ## Done (this session)
 
