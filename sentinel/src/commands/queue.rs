@@ -1,18 +1,17 @@
 use crate::sentinel;
 use anyhow::Result;
-use git2::Repository;
 use std::path::Path;
 
 pub fn run(repo_path: impl AsRef<Path>, show_all: bool, log_target: Option<String>) -> Result<()> {
-    let repo = Repository::open(repo_path.as_ref())?;
-    let sentinels = sentinel::read_all(&repo)?;
+    let repo_path = repo_path.as_ref();
+    let sentinels = sentinel::read_all(repo_path)?;
 
     if sentinels.is_empty() {
         println!("Queue is empty.");
         return Ok(());
     }
 
-    // --log mode: dump a single sentinel in full
+    // --log mode
     if let Some(target) = log_target {
         let s = sentinels
             .iter()
@@ -29,10 +28,8 @@ pub fn run(repo_path: impl AsRef<Path>, show_all: bool, log_target: Option<Strin
         if let Some(c) = &s.capture    { println!("capture:    {}", c); }
         if let Some(r) = &s.result_ref { println!("result-ref: {}", r); }
         if let Some(m) = &s.msg        { println!("msg:        {}", m); }
-
         println!("\n--- script ---");
         println!("{}", s.script_body.trim());
-
         println!("\n--- log ---");
         match &s.log {
             Some(log) => println!("{}", log.trim()),
@@ -56,9 +53,8 @@ pub fn run(repo_path: impl AsRef<Path>, show_all: bool, log_target: Option<Strin
         return Ok(());
     }
 
-    // Column widths
-    let name_w  = filtered.iter().map(|s| s.name.len()).max().unwrap_or(20).max(8);
-    let msg_w   = 32usize;
+    let name_w = filtered.iter().map(|s| s.name.len()).max().unwrap_or(20).max(8);
+    let msg_w  = 32usize;
 
     println!(
         "{:<11} {:<name_w$} {:<19} {:<8} {:<8} {}",
@@ -77,13 +73,13 @@ pub fn run(repo_path: impl AsRef<Path>, show_all: bool, log_target: Option<Strin
             .map(|t| t.format("%Y-%m-%dT%H:%M:%S").to_string())
             .unwrap_or_else(|| "-".into());
         let main_ref   = s.main_ref.as_deref()
-            .map(|r| &r[..r.len().min(8)])
-            .unwrap_or("-");
+            .map(|r| r[..r.len().min(8)].to_string())
+            .unwrap_or_else(|| "-".into());
         let result_ref = s.result_ref.as_deref()
-            .map(|r| &r[..r.len().min(8)])
-            .unwrap_or("-");
-        let msg        = s.msg.as_deref().unwrap_or("-");
-        let msg_trunc  = if msg.len() > msg_w {
+            .map(|r| r[..r.len().min(8)].to_string())
+            .unwrap_or_else(|| "-".into());
+        let msg = s.msg.as_deref().unwrap_or("-");
+        let msg_trunc = if msg.len() > msg_w {
             format!("{}…", &msg[..msg_w - 1])
         } else {
             msg.to_string()

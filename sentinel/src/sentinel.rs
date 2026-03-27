@@ -1,7 +1,8 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use git2::Repository;
 use std::fmt;
+use std::path::Path;
+use std::process::Command;
 
 pub const SENTINEL_BRANCH: &str = "claude-deploy-sentinels";
 
@@ -43,13 +44,13 @@ impl Status {
 
     pub fn icon(&self) -> &'static str {
         match self {
-            Self::New       => "⏳",
-            Self::Claiming  => "🔒",
-            Self::Running   => "⚡",
-            Self::Success   => "✅",
-            Self::Failure   => "❌",
-            Self::Abandoned => "💀",
-            Self::Unknown(_)=> "❓",
+            Self::New        => "⏳",
+            Self::Claiming   => "🔒",
+            Self::Running    => "⚡",
+            Self::Success    => "✅",
+            Self::Failure    => "❌",
+            Self::Abandoned  => "💀",
+            Self::Unknown(_) => "❓",
         }
     }
 }
@@ -90,7 +91,6 @@ pub struct Sentinel {
 }
 
 impl Sentinel {
-    /// Parse a sentinel file from its raw text content.
     pub fn parse(name: impl Into<String>, content: &str) -> Self {
         let name = name.into();
         let mut status = Status::Unknown("".into());
@@ -102,14 +102,13 @@ impl Sentinel {
         let mut capture = None;
         let mut msg = None;
         let mut result_ref = None;
-        let mut script_lines = Vec::new();
-        let mut log_lines = Vec::new();
+        let mut script_lines: Vec<String> = Vec::new();
+        let mut log_lines: Vec<String> = Vec::new();
         let mut in_body = false;
         let mut in_log = false;
 
         for line in content.lines() {
             if in_log {
-                // Strip leading "# " prefix added by watcher
                 let stripped = line.strip_prefix("# ").unwrap_or(line);
                 log_lines.push(stripped.to_string());
                 continue;
@@ -126,22 +125,16 @@ impl Sentinel {
                 in_body = true;
                 continue;
             }
-            if let Some(val) = field(line, "status")     { status = Status::from_str(val); }
-            if let Some(val) = field(line, "main-ref")   { main_ref = Some(val.to_string()); }
-            if let Some(val) = field(line, "created")    { created = parse_dt(val); }
-            if let Some(val) = field(line, "ran")        { ran = parse_dt(val); }
-            if let Some(val) = field(line, "completed")  { completed = parse_dt(val); }
-            if let Some(val) = field(line, "worker")     { worker = Some(val.to_string()); }
-            if let Some(val) = field(line, "capture")    { capture = Some(val.to_string()); }
-            if let Some(val) = field(line, "msg")        { msg = Some(val.to_string()); }
-            if let Some(val) = field(line, "result-ref") { result_ref = Some(val.to_string()); }
+            if let Some(v) = field(line, "status")     { status = Status::from_str(v); }
+            if let Some(v) = field(line, "main-ref")   { main_ref = Some(v.to_string()); }
+            if let Some(v) = field(line, "created")    { created = parse_dt(v); }
+            if let Some(v) = field(line, "ran")        { ran = parse_dt(v); }
+            if let Some(v) = field(line, "completed")  { completed = parse_dt(v); }
+            if let Some(v) = field(line, "worker")     { worker = Some(v.to_string()); }
+            if let Some(v) = field(line, "capture")    { capture = Some(v.to_string()); }
+            if let Some(v) = field(line, "msg")        { msg = Some(v.to_string()); }
+            if let Some(v) = field(line, "result-ref") { result_ref = Some(v.to_string()); }
         }
-
-        let log = if log_lines.is_empty() {
-            None
-        } else {
-            Some(log_lines.join("\n"))
-        };
 
         Self {
             name,
@@ -155,11 +148,10 @@ impl Sentinel {
             msg,
             result_ref,
             script_body: script_lines.join("\n"),
-            log,
+            log: if log_lines.is_empty() { None } else { Some(log_lines.join("\n")) },
         }
     }
 
-    /// Age of the sentinel since `ran` (or `created`) timestamp, in seconds.
     pub fn age_secs(&self) -> Option<i64> {
         let ts = self.ran.or(self.created)?;
         Some((Utc::now() - ts).num_seconds())
@@ -167,69 +159,75 @@ impl Sentinel {
 }
 
 // ---------------------------------------------------------------------------
-// Git helpers
+// Git shell helpers
+// Shell out for network ops (fetch/push) — works with both git and jj repos.
+// Read ops use gix for speed (no subprocess overhead).
 // ---------------------------------------------------------------------------
 
+/// Fetch origin/claude-deploy-sentinels.
+/// Uses git CLI — works whether the repo is plain git or jj-backed.
+pub fn fetch_sentinel_branch(repo_path: &Path) -> Result<()> {
+    let out = Command::new("git")
+        .args(["-C", repo_path.to_str().unwrap_or("."),
+               "fetch", "origin", SENTINEL_BRANCH, "-q"])
+        .output()
+        .context("git fetch")?;
+
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        anyhow::bail!("git fetch failed: {}", stderr);
+    }
+    Ok(())
+}
+
 /// Read all sentinels from origin/claude-deploy-sentinels without checking out.
-/// Returns sentinels sorted by filename (chronological by timestamp in name).
-pub fn read_all(repo: &Repository) -> Result<Vec<Sentinel>> {
-    fetch_sentinel_branch(repo)?;
+/// Uses gix for fast tree walking.
+pub fn read_all(repo_path: &Path) -> Result<Vec<Sentinel>> {
+    fetch_sentinel_branch(repo_path)?;
 
-    let branch_ref = format!("refs/remotes/origin/{}", SENTINEL_BRANCH);
-    let obj = repo
-        .revparse_single(&branch_ref)
-        .with_context(|| format!("sentinel branch not found: {}", branch_ref))?;
+    // Use git show-ref + git cat-file to read without gix complexity for now
+    // gix tree walking is verbose; shell is simpler for this read path
+    let ls = Command::new("git")
+        .args(["-C", repo_path.to_str().unwrap_or("."),
+               "ls-tree", "-r", "--name-only",
+               &format!("origin/{}", SENTINEL_BRANCH)])
+        .output()
+        .context("git ls-tree")?;
 
-    let commit = obj.peel_to_commit()?;
-    let tree = commit.tree()?;
+    let names: Vec<String> = String::from_utf8_lossy(&ls.stdout)
+        .lines()
+        .filter(|l| l.starts_with("run-"))
+        .map(|l| l.to_string())
+        .collect();
 
     let mut sentinels = Vec::new();
+    for name in names {
+        let content_out = Command::new("git")
+            .args(["-C", repo_path.to_str().unwrap_or("."),
+                   "show", &format!("origin/{}:{}", SENTINEL_BRANCH, name)])
+            .output()
+            .context("git show")?;
 
-    tree.walk(git2::TreeWalkMode::PreOrder, |_, entry| {
-        let name = entry.name().unwrap_or("").to_string();
-        if !name.starts_with("run-") {
-            return git2::TreeWalkResult::Ok;
+        if content_out.status.success() {
+            let content = String::from_utf8_lossy(&content_out.stdout);
+            sentinels.push(Sentinel::parse(&name, &content));
         }
-
-        let blob = match entry
-            .to_object(repo)
-            .and_then(|o| o.peel_to_blob())
-        {
-            Ok(b) => b,
-            Err(_) => return git2::TreeWalkResult::Ok,
-        };
-
-        let content = match std::str::from_utf8(blob.content()) {
-            Ok(s) => s.to_string(),
-            Err(_) => return git2::TreeWalkResult::Ok,
-        };
-
-        sentinels.push(Sentinel::parse(name, &content));
-        git2::TreeWalkResult::Ok
-    })?;
+    }
 
     sentinels.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(sentinels)
 }
 
-/// Fetch origin/claude-deploy-sentinels quietly.
-pub fn fetch_sentinel_branch(repo: &Repository) -> Result<()> {
-    let mut remote = repo
-        .find_remote("origin")
-        .context("no 'origin' remote")?;
-
-    remote
-        .fetch(&[SENTINEL_BRANCH], None, None)
-        .context("fetch sentinel branch")?;
-
-    Ok(())
-}
-
 /// Generate a unique sentinel filename.
 /// Format: run-<ref8>-<YYYYMMDDTHHmmss>-<rand4>
-pub fn new_name(repo: &Repository) -> Result<String> {
-    let head = repo.head()?.peel_to_commit()?;
-    let ref8 = &head.id().to_string()[..8];
+pub fn new_name(repo_path: &Path) -> Result<String> {
+    let head_out = Command::new("git")
+        .args(["-C", repo_path.to_str().unwrap_or("."),
+               "rev-parse", "--short=8", "HEAD"])
+        .output()
+        .context("git rev-parse HEAD")?;
+
+    let ref8 = String::from_utf8_lossy(&head_out.stdout).trim().to_string();
     let ts = Utc::now().format("%Y%m%dT%H%M%S");
     let rand = rand4();
     Ok(format!("run-{}-{}-{}", ref8, ts, rand))
@@ -237,7 +235,6 @@ pub fn new_name(repo: &Repository) -> Result<String> {
 
 fn rand4() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
-    // Simple: xor pid + nanos, format as 4 hex chars
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.subsec_nanos())
@@ -247,21 +244,18 @@ fn rand4() -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Internal helpers
+// Helpers
 // ---------------------------------------------------------------------------
 
 fn field<'a>(line: &'a str, key: &str) -> Option<&'a str> {
-    let prefix = format!("{}:", key);
-    line.strip_prefix(&prefix).map(|s| s.trim())
+    line.strip_prefix(&format!("{}:", key)).map(|s| s.trim())
 }
 
 fn parse_dt(s: &str) -> Option<DateTime<Utc>> {
-    // Try ISO 8601 with T separator
     DateTime::parse_from_rfc3339(s)
         .map(|dt| dt.with_timezone(&Utc))
         .ok()
         .or_else(|| {
-            // Try without timezone (assume UTC): 2026-03-27T03:46:00
             chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S")
                 .ok()
                 .map(|ndt| ndt.and_utc())
