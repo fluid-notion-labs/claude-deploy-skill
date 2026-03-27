@@ -1,0 +1,11 @@
+status: new
+main-ref: 4fe965d
+created: 2026-03-27T04:10:00
+msg: build sentinel-rust — watch + create commands
+
+git fetch origin sentinel-rust -q
+git checkout sentinel-rust -q
+git pull --ff-only origin sentinel-rust -q
+cd sentinel
+cargo check 2>&1
+echo "=== check done ==="
