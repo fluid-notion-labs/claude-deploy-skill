@@ -17,7 +17,7 @@ pub async fn run(
         anyhow::bail!("started on sentinel branch — checkout your working branch first");
     }
 
-    let mode = if commands_mode { " [--commands]" } else { "" };
+    let mode = if commands_mode { "" } else { " [no-commands]" };
     println!("Watching {} [{}]{} (every {}s) — Ctrl-C to stop",
         repo_path.display(), branch, mode, interval);
 

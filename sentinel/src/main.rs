@@ -23,9 +23,9 @@ enum Command {
         #[arg(long)] all: bool,
         #[arg(long)] log: Option<String>,
     },
-    /// Watch repo for new sentinels and run them (uses git worktree, no branch switching)
+    /// Watch for new sentinels and run them; also tracks origin/main (use --no-commands to disable sentinel execution)
     Watch {
-        #[arg(long)] commands: bool,
+        #[arg(long, default_value = "true")] commands: bool,
         #[arg(long, default_value = "5")] interval: u64,
     },
     /// Create a new sentinel and push it
