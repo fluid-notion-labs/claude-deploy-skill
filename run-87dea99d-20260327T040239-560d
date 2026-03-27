@@ -1,10 +1,12 @@
-status: running
+status: success
 main-ref: 87dea99
 created: 2026-03-27T04:15:00
 capture: bin
 msg: build claude-sentinel release binary (fixed)
 worker: nick-MacPro5-1-27724
 ran: 2026-03-27T12:02:56
+completed: 2026-03-27T12:03:33
+result-ref: 4f24ef2d5b48b404d917bc207edff656805b6461
 
 cd sentinel
 cargo build --release 2>&1
@@ -12,3 +14,66 @@ mkdir -p ../bin
 cp target/release/claude-deploy-sentinel ../bin/
 ls -lh ../bin/claude-deploy-sentinel
 echo "=== done ==="
+
+# --- log ---
+#    Compiling claude-deploy-sentinel v0.1.0 (/mnt/data/projects/claude-deploy-skill/sentinel)
+# warning: function `run` is never used
+#  --> src/commands/watch.rs:4:8
+#   |
+# 4 | pub fn run(_repo_path: impl AsRef<Path>, _args: ()) -> Result<()> {
+#   |        ^^^
+#   |
+#   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+# 
+# warning: function `run` is never used
+#  --> src/commands/create.rs:4:8
+#   |
+# 4 | pub fn run(_repo_path: impl AsRef<Path>, _args: ()) -> Result<()> {
+#   |        ^^^
+# 
+# warning: function `run` is never used
+#  --> src/commands/reap.rs:4:8
+#   |
+# 4 | pub fn run(_repo_path: impl AsRef<Path>, _args: ()) -> Result<()> {
+#   |        ^^^
+# 
+# warning: function `run` is never used
+#  --> src/commands/prune.rs:4:8
+#   |
+# 4 | pub fn run(_repo_path: impl AsRef<Path>, _args: ()) -> Result<()> {
+#   |        ^^^
+# 
+# warning: method `is_terminal` is never used
+#   --> src/sentinel.rs:36:12
+#    |
+# 23 | impl Status {
+#    | ----------- method in this implementation
+# ...
+# 36 |     pub fn is_terminal(&self) -> bool {
+#    |            ^^^^^^^^^^^
+# 
+# warning: method `age_secs` is never used
+#    --> src/sentinel.rs:163:12
+#     |
+#  92 | impl Sentinel {
+#     | ------------- method in this implementation
+# ...
+# 163 |     pub fn age_secs(&self) -> Option<i64> {
+#     |            ^^^^^^^^
+# 
+# warning: function `new_name` is never used
+#    --> src/sentinel.rs:230:8
+#     |
+# 230 | pub fn new_name(repo: &Repository) -> Result<String> {
+#     |        ^^^^^^^^
+# 
+# warning: function `rand4` is never used
+#    --> src/sentinel.rs:238:4
+#     |
+# 238 | fn rand4() -> String {
+#     |    ^^^^^
+# 
+# warning: `claude-deploy-sentinel` (bin "claude-deploy-sentinel") generated 8 warnings
+#     Finished `release` profile [optimized] target(s) in 20.58s
+# -rwxrwxr-x 1 nick nick 1.9M Mar 27 12:03 ../bin/claude-deploy-sentinel
+# === done ===
