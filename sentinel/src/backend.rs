@@ -37,6 +37,7 @@ pub trait Backend: Send + Sync {
     fn ensure_sentinel_branch(&self) -> Result<()>;
     fn push_sentinel(&self, name: &str, content: &str, commit_msg: &str) -> Result<()>;
     fn update_sentinel(&self, name: &str, content: &str, commit_msg: &str) -> Result<()>;
+    fn delete_sentinels(&self, names: &[&str]) -> Result<()>;
 
     // --- optimistic claim ---
     fn claim_sentinel(&self, name: &str, worker: &str) -> Result<bool>;
@@ -248,6 +249,34 @@ impl Backend for GitShellBackend {
             .with_context(|| format!("write sentinel {}", name))?;
         self.git_wt(&["add", name])?;
         self.git_wt(&["commit", "-m", commit_msg, "-q"])?;
+        self.git_wt(&["push", "origin", SENTINEL_BRANCH, "-q"])?;
+        Ok(())
+    }
+
+    fn delete_sentinels(&self, names: &[&str]) -> Result<()> {
+        if names.is_empty() {
+            return Ok(());
+        }
+        self.ensure_worktree()?;
+
+        // Pull to latest before mutating
+        let _ = self.git_wt(&["pull", "--ff-only", "origin", SENTINEL_BRANCH, "-q"]);
+
+        // git rm each file that actually exists in the worktree
+        for name in names {
+            let path = self.sentinel_path(name);
+            if path.exists() {
+                self.git_wt(&["rm", "-f", name])?;
+            }
+        }
+
+        let msg = if names.len() == 1 {
+            format!("sentinel: prune {}", names[0])
+        } else {
+            format!("sentinel: prune {} sentinels", names.len())
+        };
+
+        self.git_wt(&["commit", "-m", &msg, "-q"])?;
         self.git_wt(&["push", "origin", SENTINEL_BRANCH, "-q"])?;
         Ok(())
     }

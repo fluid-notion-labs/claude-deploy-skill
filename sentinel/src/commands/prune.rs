@@ -49,9 +49,9 @@ pub fn run(
     }
 
     if !dry_run {
-        // TODO: delete files from sentinel branch and push
-        // Requires a new backend method: delete_sentinels(&[names])
-        println!("(prune delete not yet implemented — run with --dry-run to preview)");
+        let refs: Vec<&str> = to_prune.iter().map(|s| s.as_str()).collect();
+        backend.delete_sentinels(&refs)?;
+        println!("Pruned {} sentinel(s).", to_prune.len());
     }
 
     Ok(())

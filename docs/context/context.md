@@ -184,13 +184,14 @@ Next up:
 
 ## Open
 
-- `watch` spinner — replace per-tick output with in-place spinner (`\r`, frames `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`)
-- `prune` delete not yet implemented — `Backend` needs `delete_sentinels(&[names])` method
-- sentinel `main-ref` checkout semantics — currently watcher pulls latest main and runs there; option to checkout exact `main-ref` for reproducibility (deferred, needs design)
+- `prune` delete — **done**: `delete_sentinels(&[names])` on `Backend` trait + `GitShellBackend` impl, wired into `prune` command
+- sentinel `main-ref` checkout semantics (deferred)
 - `parse_profile` globals — `$PROFILE` and `$POSITIONAL[]` intentionally global; documented
 
 ## Done (this session)
 
+- `prune` delete implemented: `delete_sentinels(&[&str])` on `Backend` trait + `GitShellBackend`; pulls worktree, `git rm`s files, single commit + push; wired into prune replacing the TODO stub
+- watch spinner dropped — `claude-deploy-sentinel` is now primary runner
 - `claude-deploy-sentinel` Rust binary working end-to-end — watch, claim, run, log, worktree
 - worktree detached HEAD detection + repair on startup
 - `git worktree prune` before add — fixes stale registration errors
