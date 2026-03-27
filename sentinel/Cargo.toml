@@ -7,34 +7,17 @@ repository = "https://github.com/fluid-notion-labs/claude-deploy-skill"
 license = "MIT"
 
 [[bin]]
-name = "claude-deploy-sentinel"
+name = "claude-sentinel"
 path = "src/main.rs"
 
 [dependencies]
-# CLI
-clap = { version = "4", features = ["derive"] }
-
-# Git operations (no shelling out)
-git2 = "0.19"
-
-# Async runtime for watch loop + signal handling
-tokio = { version = "1", features = ["full"] }
-
-# Serialization for sentinel file format
-serde = { version = "1", features = ["derive"] }
-
-# Error handling
-anyhow = "1"
+clap    = { version = "4", features = ["derive"] }
+tokio   = { version = "1", features = ["full"] }
+anyhow  = "1"
 thiserror = "1"
-
-# Time
-chrono = { version = "0.4", features = ["serde"] }
-
-# Terminal output
+chrono  = { version = "0.4", features = ["serde"] }
 colored = "2"
-
-# Random suffix generation
-rand = "0.8"
+rand    = "0.8"
 
 [profile.release]
 strip = true
