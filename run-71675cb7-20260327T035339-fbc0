@@ -1,8 +1,9 @@
-status: claiming
+status: running
 main-ref: 71675cb
 created: 2026-03-27T03:50:00
 msg: probe — jj version + claim mechanics
 worker: nick-MacPro5-1-27724
+ran: 2026-03-27T11:53:54
 
 echo "=== env ==="
 echo "hostname: $(hostname)"
