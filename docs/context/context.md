@@ -155,6 +155,7 @@ Next up:
 ## Open
 
 - `parse_profile` globals — `$PROFILE` and `$POSITIONAL[]` are intentionally global (infer functions mutate PROFILE post-parse); documented with comment in script
+- `watch --commands` sentinel spam bug — sentinel commits are landing on main branch instead of staying on `claude-deploy-sentinels`. Root cause not yet confirmed but likely: `_sentinel_run` checks out main to run the script (line 653), and if `s_capture` path exists it commits+pushes to main (line 671) — that part is intentional. But the sentinel status updates (running/success/failure) should only ever touch the sentinel branch. Need to audit whether any sentinel state write is accidentally targeting main. Also: the `— no change` heartbeat line prints every 5s tick unconditionally — should suppress and only print on change or every ~60s.
 
 ## Done (this session)
 
