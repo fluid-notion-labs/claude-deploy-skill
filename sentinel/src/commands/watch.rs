@@ -32,6 +32,9 @@ pub async fn run(
         let ts = Utc::now().format("%H:%M:%S").to_string();
 
         if commands_mode {
+            // Pull main first — sentinels run against latest
+            let _ = backend.pull_main(&branch);
+
             // Fetch + pull into worktree — main tree untouched
             let _ = backend.fetch_sentinel_branch();
 
@@ -128,9 +131,6 @@ fn run_sentinel(
         shell_escape(repo_path.to_str().unwrap_or(".")),
         s.script_body
     ))?;
-
-    // Pull main before running (main tree only)
-    let _ = backend.pull_main(main_branch);
 
     // Run script — repo_path is always on main, no checkout needed
     let output = std::process::Command::new("bash")
