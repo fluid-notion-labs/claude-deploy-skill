@@ -605,7 +605,7 @@ _sentinel_new_name() {
     local ref ts rand
     ref=$(git -C "$repo" rev-parse --short=8 HEAD 2>/dev/null || echo "noref")
     ts=$(date -u '+%Y%m%dT%H%M%S')
-    rand=$(head -c 2 /dev/urandom | xxd -p | head -c 4)
+    rand=$(head -c 2 /dev/urandom | od -An -tx1 | tr -d ' \n' | head -c 4)
     echo "run-${ref}-${ts}-${rand}"
 }
 

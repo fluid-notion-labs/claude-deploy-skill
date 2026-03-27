@@ -1,0 +1,42 @@
+[package]
+name = "claude-deploy-sentinel"
+version = "0.1.0"
+edition = "2021"
+description = "Sentinel queue manager for claude-deploy — watch, queue, prune, create"
+repository = "https://github.com/fluid-notion-labs/claude-deploy-skill"
+license = "MIT"
+
+[[bin]]
+name = "claude-deploy-sentinel"
+path = "src/main.rs"
+
+[dependencies]
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Git operations (no shelling out)
+git2 = "0.19"
+
+# Async runtime for watch loop + signal handling
+tokio = { version = "1", features = ["full"] }
+
+# Serialization for sentinel file format
+serde = { version = "1", features = ["derive"] }
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Terminal output
+colored = "2"
+
+# Random suffix generation
+rand = "0.8"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
