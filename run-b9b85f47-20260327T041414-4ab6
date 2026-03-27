@@ -1,7 +1,8 @@
-status: new
+status: claiming
 main-ref: b9b85f4
 created: 2026-03-27T04:30:00
 msg: cargo check — backend trait refactor
+worker: nick-MacPro5-1-27724
 
 cd sentinel
 cargo check 2>&1
