@@ -1,0 +1,13 @@
+status: new
+main-ref: c5130951
+created: 2026-03-27T05:55:48
+msg: smoke test — host info
+
+uname -a
+echo "---"
+nproc
+echo "---"
+df -h /
+echo "---"
+cargo --version 2>/dev/null || echo "no cargo"
+rustc --version 2>/dev/null || echo "no rustc"
