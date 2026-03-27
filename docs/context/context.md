@@ -67,7 +67,7 @@ Key helpers (all require `load_config` to have run first):
 
 ## Sentinel run workflow
 
-Claude creates sentinel files on the `claude-deploy-sentinels` orphan branch (never pollutes main). Each sentinel is named `run-<main-ref>-<timestamp>` and tracks a state machine: `new` → `running` → `success`/`failure`.
+Claude creates sentinel files on the `claude-deploy-sentinels` orphan branch (never pollutes main). Each sentinel is named `run-<main-ref-8>-<timestamp>-<random4>` (e.g. `run-a4f3c2d1-20260327T141200-3f9a`) and tracks a state machine: `new` → `claiming` → `running` → `success`/`failure`/`abandoned`. The random suffix prevents collisions when multiple sentinels are created in the same second. Use `_sentinel_new_name [repo]` to generate the filename.
 
 **Sentinel file format:**
 ```
@@ -104,6 +104,13 @@ msg: commit message for results on main
 script body here
 ```
 Push to `claude-deploy-sentinels` branch. Watch picks it up within poll interval.
+
+**Generating the filename (Claude does this):**
+```sh
+name=$(_sentinel_new_name)         # run-<ref8>-<ts>-<rand4>
+# or without the helper:
+name="run-$(git rev-parse --short=8 HEAD)-$(date -u +%Y%m%dT%H%M%S)-$(head -c 2 /dev/urandom | xxd -p | head -c 4)"
+```
 
 After every `git push`, Claude generates a diff HTML and presents it inline in the chat using `present_files`. This applies to **any repo** Claude is working in via claude-deploy — it is not a script command, it is Claude's standard operating procedure.
 
