@@ -1,8 +1,9 @@
-status: claiming
+status: running
 main-ref: c5130951
 created: 2026-03-27T05:55:48
 msg: smoke test — host info
 worker: nick-MacPro5-1-102389
+ran: 2026-03-27T05:56:14
 
 uname -a
 echo "---"
