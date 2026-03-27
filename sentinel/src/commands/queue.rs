@@ -1,5 +1,6 @@
 use crate::sentinel;
 use anyhow::Result;
+use git2::Repository;
 use std::path::Path;
 
 pub fn run(repo_path: impl AsRef<Path>, show_all: bool, log_target: Option<String>) -> Result<()> {

@@ -2,7 +2,6 @@ use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use git2::Repository;
 use std::fmt;
-use std::path::Path;
 
 pub const SENTINEL_BRANCH: &str = "claude-deploy-sentinels";
 
