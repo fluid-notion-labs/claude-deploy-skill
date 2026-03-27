@@ -1,0 +1,9 @@
+status: new
+main-ref: 737a9e7
+created: 2026-03-27T06:00:00
+msg: rust watch end-to-end test
+
+echo "=== all good ==="
+echo "branch: $(git rev-parse --abbrev-ref HEAD)"
+echo "date: $(date)"
+echo "=== done ==="
