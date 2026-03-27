@@ -1,0 +1,10 @@
+status: new
+main-ref: 6246cf5
+created: 2026-03-27T05:30:00
+msg: workflow debug — rust watch
+
+echo "=== hello from rust watch ==="
+echo "pwd: $(pwd)"
+echo "branch: $(git rev-parse --abbrev-ref HEAD)"
+echo "date: $(date)"
+echo "=== done ==="
