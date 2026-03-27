@@ -1,0 +1,12 @@
+status: new
+main-ref: b0265b4
+created: 2026-03-27T04:10:00
+capture: bin
+msg: build claude-sentinel release binary
+
+cd sentinel
+cargo build --release 2>&1
+mkdir -p ../bin
+cp target/release/claude-deploy-sentinel ../bin/
+ls -lh ../bin/claude-deploy-sentinel
+echo "=== done ==="
