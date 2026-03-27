@@ -1,0 +1,13 @@
+status: new
+main-ref: 71675cb
+created: 2026-03-27T03:50:00
+msg: probe — jj version + claim mechanics
+
+echo "=== env ==="
+echo "hostname: $(hostname)"
+echo "git branch: $(git rev-parse --abbrev-ref HEAD)"
+echo "git HEAD: $(git rev-parse --short HEAD)"
+echo "cargo: $(cargo --version 2>/dev/null || echo 'not found')"
+echo "jj: $(jj --version 2>/dev/null || echo 'not found')"
+echo "worker field should be set: checking sentinel file..."
+echo "=== done ==="
