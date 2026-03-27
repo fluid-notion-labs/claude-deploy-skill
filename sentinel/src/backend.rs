@@ -211,13 +211,10 @@ impl Backend for GitShellBackend {
     }
 
     fn list_sentinels(&self) -> Result<Vec<String>> {
-        // Read from worktree if available, else from origin ref
-        let out = if self.sentinel_wt.join("HEAD").exists() {
-            self.git_wt(&["ls-files"])?
-        } else {
-            self.git(&["ls-tree", "-r", "--name-only",
-                &format!("origin/{}", SENTINEL_BRANCH)])?
-        };
+        // Always read from origin ref — guaranteed fresh after fetch_sentinel_branch.
+        // Worktree is for writes only.
+        let out = self.git(&["ls-tree", "-r", "--name-only",
+            &format!("origin/{}", SENTINEL_BRANCH)])?;
         Ok(out.lines()
             .filter(|l| l.starts_with("run-"))
             .map(|l| l.to_string())
@@ -225,12 +222,7 @@ impl Backend for GitShellBackend {
     }
 
     fn read_sentinel(&self, name: &str) -> Result<String> {
-        // Prefer worktree (already on disk) over git-show
-        let wt_path = self.sentinel_wt.join(name);
-        if wt_path.exists() {
-            return std::fs::read_to_string(&wt_path)
-                .with_context(|| format!("read {}", wt_path.display()));
-        }
+        // Always read from origin ref — never from stale worktree disk state.
         self.git(&["show", &format!("origin/{}:{}", SENTINEL_BRANCH, name)])
     }
 
@@ -259,9 +251,23 @@ impl Backend for GitShellBackend {
     }
 
     fn claim_sentinel(&self, name: &str, worker: &str) -> Result<bool> {
+        // Pull worktree to latest before claiming — ensures file is on disk and current
+        let _ = self.git_wt(&["pull", "--ff-only", "origin", SENTINEL_BRANCH, "-q"]);
+
         let path = self.sentinel_path(name);
         let content = std::fs::read_to_string(&path)
             .with_context(|| format!("read sentinel {}", name))?;
+
+        // Re-check status from disk — bail if already claimed/running
+        if let Some(status) = content.lines()
+            .find(|l| l.starts_with("status:"))
+            .and_then(|l| l.strip_prefix("status:"))
+            .map(|s| s.trim())
+        {
+            if status != "new" {
+                return Ok(false);
+            }
+        }
 
         let patched = set_fields(&content, &[
             ("status", "claiming"),
