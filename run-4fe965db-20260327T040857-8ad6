@@ -1,8 +1,9 @@
-status: claiming
+status: running
 main-ref: 4fe965d
 created: 2026-03-27T04:10:00
 msg: build sentinel-rust — watch + create commands
 worker: nick-MacPro5-1-27724
+ran: 2026-03-27T12:14:27
 
 git fetch origin sentinel-rust -q
 git checkout sentinel-rust -q
