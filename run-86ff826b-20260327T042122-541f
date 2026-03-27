@@ -1,10 +1,28 @@
-status: running
+status: success
 main-ref: 86ff826
 created: 2026-03-27T05:00:00
 msg: cargo check — worktree backend
 worker: nick-MacPro5-1-42594
 ran: 2026-03-27T12:21:41
+completed: 2026-03-27T12:21:53
 
 cd sentinel
 cargo check 2>&1
 echo "exit: $?"
+
+# --- log ---
+#     Checking claude-deploy-sentinel v0.1.0 (/mnt/data/projects/claude-deploy-skill/sentinel)
+# warning: method `is_terminal` is never used
+#   --> src/sentinel.rs:37:12
+#    |
+# 24 | impl Status {
+#    | ----------- method in this implementation
+# ...
+# 37 |     pub fn is_terminal(&self) -> bool {
+#    |            ^^^^^^^^^^^
+#    |
+#    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+# 
+# warning: `claude-deploy-sentinel` (bin "claude-sentinel") generated 1 warning
+#     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.74s
+# exit: 0
