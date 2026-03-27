@@ -1,7 +1,8 @@
-status: new
+status: claiming
 main-ref: cfcd09f
 created: 2026-03-27T05:45:00
 msg: worktree tracking branch fix test
+worker: nick-MacPro5-1-50963
 
 echo "=== worktree test ==="
 echo "pwd: $(pwd)"
