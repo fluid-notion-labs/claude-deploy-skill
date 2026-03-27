@@ -77,7 +77,28 @@ _do_update() {
             local comp_dir="${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion/completions"
             mkdir -p "$comp_dir"
             cp "$comp_src" "$comp_dir/claude-deploy"
-            [[ "$quiet" == "0" ]] && echo "✓ Completion installed → $comp_dir/claude-deploy" >&2
+            if [[ "$quiet" == "0" ]]; then
+                echo "✓ Completion installed → $comp_dir/claude-deploy" >&2
+                # Detect whether the XDG completions dir will be auto-sourced.
+                # bash-completion ≥2.8 scans XDG_DATA_DIRS; check if our dir is reachable.
+                local will_autoload=0
+                if declare -f _completion_loader > /dev/null 2>&1; then
+                    # bash-completion is active in this shell — XDG scanning supported
+                    will_autoload=1
+                elif [[ -f /usr/share/bash-completion/bash_completion ]]; then
+                    # package installed; will load in new shells even if not in this one
+                    will_autoload=1
+                fi
+                if [[ "$will_autoload" == "0" ]]; then
+                    echo "  ⚠  bash-completion not detected — completions won't load automatically." >&2
+                    echo "     To enable, choose one:" >&2
+                    echo "       a) Install bash-completion:  sudo apt install bash-completion  (or brew install bash-completion@2)" >&2
+                    echo "       b) Add to ~/.bashrc:         source \"$comp_dir/claude-deploy\"" >&2
+                    echo "     Then open a new shell." >&2
+                else
+                    echo "  ℹ  Open a new shell (or run: source \"$comp_dir/claude-deploy\")" >&2
+                fi
+            fi
         fi
 
         [[ "$quiet" == "0" ]] && echo "✓ Updated to $(git -C "$repo_dir" rev-parse --short HEAD)" >&2
