@@ -1,0 +1,9 @@
+status: new
+main-ref: cfcd09f
+created: 2026-03-27T05:45:00
+msg: worktree tracking branch fix test
+
+echo "=== worktree test ==="
+echo "pwd: $(pwd)"
+echo "branch: $(git rev-parse --abbrev-ref HEAD)"
+echo "=== done ==="
