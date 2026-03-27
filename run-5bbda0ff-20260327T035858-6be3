@@ -1,8 +1,9 @@
-status: claiming
+status: running
 main-ref: 5bbda0f
 created: 2026-03-27T04:00:00
 msg: build claude-sentinel — cargo check + build release
 worker: nick-MacPro5-1-27724
+ran: 2026-03-27T11:59:19
 
 cd sentinel
 echo "=== cargo check ==="
