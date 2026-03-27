@@ -1,0 +1,8 @@
+status: new
+main-ref: 86ff826
+created: 2026-03-27T05:00:00
+msg: cargo check — worktree backend
+
+cd sentinel
+cargo check 2>&1
+echo "exit: $?"
