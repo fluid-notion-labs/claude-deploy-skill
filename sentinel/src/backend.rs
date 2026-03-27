@@ -165,7 +165,11 @@ impl GitShellBackend {
                 self.sentinel_wt.to_str().unwrap_or(".")]);
         }
 
-        // Always prune stale registrations before adding
+        // Always prune stale registrations before adding, and explicitly remove
+        // the worktree path if it's still registered (covers partial/stale state
+        // from previous sessions where the dir exists but HEAD check failed).
+        let _ = self.git(&["worktree", "remove", "--force",
+            self.sentinel_wt.to_str().unwrap_or(".")]);
         let _ = self.git(&["worktree", "prune"]);
 
         // Fetch sentinel branch from origin
