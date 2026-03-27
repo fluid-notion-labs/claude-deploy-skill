@@ -1,8 +1,9 @@
-status: new
+status: claiming
 main-ref: 87dea99
 created: 2026-03-27T04:15:00
 capture: bin
 msg: build claude-sentinel release binary (fixed)
+worker: nick-MacPro5-1-27724
 
 cd sentinel
 cargo build --release 2>&1
