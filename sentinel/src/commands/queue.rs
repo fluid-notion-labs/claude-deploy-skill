@@ -1,7 +1,6 @@
-use crate::sentinel::{self, Status};
+use crate::sentinel;
 use anyhow::Result;
 use std::path::Path;
-use git2::Repository;
 
 pub fn run(repo_path: impl AsRef<Path>, show_all: bool, log_target: Option<String>) -> Result<()> {
     let repo = Repository::open(repo_path.as_ref())?;
