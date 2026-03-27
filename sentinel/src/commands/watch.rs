@@ -2,7 +2,9 @@ use crate::backend::{worker_id, set_fields, Backend};
 use crate::sentinel::{self, Sentinel, Status, SENTINEL_BRANCH};
 use anyhow::Result;
 use chrono::Utc;
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -132,17 +134,46 @@ fn run_sentinel(
         s.script_body
     ))?;
 
-    // Run script — repo_path is always on main, no checkout needed
-    let output = std::process::Command::new("bash")
+    // Run script — stream output live, tee to log buffer
+    let mut child = std::process::Command::new("bash")
         .arg(&tmp_script)
-        .output()?;
-    let log_content = format!("{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr));
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    let mut log_lines: Vec<String> = Vec::new();
+
+    // Drain stdout + stderr concurrently using threads
+    let stdout = child.stdout.take().unwrap();
+    let stderr = child.stderr.take().unwrap();
+
+    let (tx, rx) = std::sync::mpsc::channel::<(bool, String)>();
+    let tx2 = tx.clone();
+
+    std::thread::spawn(move || {
+        for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+            let _ = tx.send((false, line));
+        }
+    });
+    std::thread::spawn(move || {
+        for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+            let _ = tx2.send((true, line));
+        }
+    });
+
+    for (is_err, line) in rx {
+        if is_err {
+            eprintln!("  | {}", line);
+        } else {
+            println!("  | {}", line);
+        }
+        log_lines.push(line);
+    }
+
+    let exit_ok = child.wait()?.success();
+    let log_content = log_lines.join("\n") + "\n";
     std::fs::write(&tmp_log, &log_content)?;
     let _ = std::fs::remove_file(&tmp_script);
-
-    let exit_ok = output.status.success();
     println!("  → {}", if exit_ok { "succeeded" } else { "FAILED" });
 
     // Capture to main if specified
