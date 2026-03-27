@@ -116,6 +116,38 @@ impl GitShellBackend {
         self.sentinel_wt.join(name)
     }
 
+    /// Pull the sentinel worktree safely.
+    ///
+    /// If the worktree is dirty (e.g. Cargo.lock drifted in, stray file left
+    /// by a sentinel script), we auto-commit everything before pulling so
+    /// `ff-only` never fails on local dirt. The sentinel branch contains no
+    /// human code so auto-committing is safe.
+    fn pull_worktree_clean(&self) -> Result<()> {
+        let status = Command::new("git")
+            .arg("-C").arg(&self.sentinel_wt)
+            .args(["status", "--porcelain"])
+            .output()
+            .context("git status --porcelain")?;
+
+        if !status.stdout.is_empty() {
+            let summary: String = String::from_utf8_lossy(&status.stdout)
+                .lines()
+                .take(5)
+                .collect::<Vec<_>>()
+                .join(", ");
+            eprintln!("  → worktree dirty, auto-committing before pull: {}", summary);
+            self.git_wt(&["add", "-A"])?;
+            self.git_wt(&[
+                "commit", "-m",
+                "sentinel: auto-commit worktree dirt before pull",
+                "--allow-empty", "-q",
+            ])?;
+        }
+
+        let _ = self.git_wt(&["pull", "--ff-only", "origin", SENTINEL_BRANCH, "-q"]);
+        Ok(())
+    }
+
     /// Ensure the sentinel worktree exists and is up to date.
     /// Called lazily — safe to call multiple times.
     fn ensure_worktree(&self) -> Result<()> {
@@ -124,7 +156,7 @@ impl GitShellBackend {
             let head = self.git_wt(&["symbolic-ref", "--short", "HEAD"])
                 .unwrap_or_default();
             if head.trim() == SENTINEL_BRANCH {
-                let _ = self.git_wt(&["pull", "--ff-only", "origin", SENTINEL_BRANCH, "-q"]);
+                self.pull_worktree_clean()?;
                 return Ok(());
             }
             // Detached or wrong branch — remove, prune, recreate
@@ -208,7 +240,7 @@ impl Backend for GitShellBackend {
         self.git(&["fetch", "origin", SENTINEL_BRANCH, "-q"])?;
         // Pull in worktree if it exists
         if self.sentinel_wt.join("HEAD").exists() {
-            let _ = self.git_wt(&["pull", "--ff-only", "origin", SENTINEL_BRANCH, "-q"]);
+            self.pull_worktree_clean()?;
         }
         Ok(())
     }
@@ -259,9 +291,6 @@ impl Backend for GitShellBackend {
         }
         self.ensure_worktree()?;
 
-        // Pull to latest before mutating
-        let _ = self.git_wt(&["pull", "--ff-only", "origin", SENTINEL_BRANCH, "-q"]);
-
         // git rm each file that actually exists in the worktree
         for name in names {
             let path = self.sentinel_path(name);
@@ -283,7 +312,7 @@ impl Backend for GitShellBackend {
 
     fn claim_sentinel(&self, name: &str, worker: &str) -> Result<bool> {
         // Pull worktree to latest before claiming — ensures file is on disk and current
-        let _ = self.git_wt(&["pull", "--ff-only", "origin", SENTINEL_BRANCH, "-q"]);
+        self.pull_worktree_clean()?;
 
         let path = self.sentinel_path(name);
         let content = std::fs::read_to_string(&path)
