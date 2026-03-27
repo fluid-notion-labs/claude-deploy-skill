@@ -1,8 +1,9 @@
-status: claiming
+status: running
 main-ref: 86ff826
 created: 2026-03-27T05:00:00
 msg: cargo check — worktree backend
 worker: nick-MacPro5-1-42594
+ran: 2026-03-27T12:21:41
 
 cd sentinel
 cargo check 2>&1
