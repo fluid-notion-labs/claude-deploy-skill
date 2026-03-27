@@ -119,9 +119,18 @@ impl GitShellBackend {
     /// Called lazily — safe to call multiple times.
     fn ensure_worktree(&self) -> Result<()> {
         if self.sentinel_wt.join("HEAD").exists() {
-            // Already set up — just pull
-            let _ = self.git_wt(&["pull", "--ff-only", "origin", SENTINEL_BRANCH, "-q"]);
-            return Ok(());
+            // Already set up — check we are on the branch (not detached), then pull
+            let head = self.git_wt(&["symbolic-ref", "--short", "HEAD"])
+                .unwrap_or_default();
+            if head.trim() != SENTINEL_BRANCH {
+                // Detached — remove and recreate
+                eprintln!("  → worktree in detached state, recreating...");
+                let _ = self.git(&["worktree", "remove", "--force",
+                    self.sentinel_wt.to_str().unwrap_or(".")]);
+            } else {
+                let _ = self.git_wt(&["pull", "--ff-only", "origin", SENTINEL_BRANCH, "-q"]);
+                return Ok(());
+            }
         }
 
         // Fetch sentinel branch from origin
@@ -153,9 +162,11 @@ impl GitShellBackend {
             eprintln!("  → created sentinel branch: {}", SENTINEL_BRANCH);
         }
 
-        // Add permanent worktree tracking sentinel branch
+        // Add permanent worktree with local tracking branch.
+        // Use -B to reset if branch already exists locally.
         self.git(&[
             "worktree", "add",
+            "-B", SENTINEL_BRANCH,
             self.sentinel_wt.to_str().context("non-utf8 path")?,
             &format!("origin/{}", SENTINEL_BRANCH),
             "-q",
