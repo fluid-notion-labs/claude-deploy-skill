@@ -1,10 +1,37 @@
-status: running
+status: success
 main-ref: b9b85f4
 created: 2026-03-27T04:30:00
 msg: cargo check — backend trait refactor
 worker: nick-MacPro5-1-27724
 ran: 2026-03-27T12:15:02
+completed: 2026-03-27T12:15:14
 
 cd sentinel
 cargo check 2>&1
 echo "exit: $?"
+
+# --- log ---
+#     Checking claude-deploy-sentinel v0.1.0 (/mnt/data/projects/claude-deploy-skill/sentinel)
+# warning: method `origin_sha` is never used
+#   --> src/backend.rs:84:8
+#    |
+# 22 | pub trait Backend: Send + Sync {
+#    |           ------- method in this trait
+# ...
+# 84 |     fn origin_sha(&self, branch: &str) -> Result<String>;
+#    |        ^^^^^^^^^^
+#    |
+#    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+# 
+# warning: method `is_terminal` is never used
+#   --> src/sentinel.rs:37:12
+#    |
+# 24 | impl Status {
+#    | ----------- method in this implementation
+# ...
+# 37 |     pub fn is_terminal(&self) -> bool {
+#    |            ^^^^^^^^^^^
+# 
+# warning: `claude-deploy-sentinel` (bin "claude-sentinel") generated 2 warnings
+#     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.85s
+# exit: 0
