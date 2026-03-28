@@ -1,8 +1,9 @@
-status: claiming
+status: running
 main-ref: 8779688e
 created: 2026-03-28T03:01:47
 msg: probe bd output formats
 worker: nick-mamba-98775
+ran: 2026-03-28T03:40:39
 
 #!/usr/bin/env bash
 set -euo pipefail
