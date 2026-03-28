@@ -1,8 +1,9 @@
-status: claiming
+status: running
 main-ref: d117fde1
 created: 2026-03-28T07:33:51
 msg: rebuild — fix compile errors
 worker: nick-mamba-119043
+ran: 2026-03-28T07:34:09
 
 #!/usr/bin/env bash
 set -euo pipefail
