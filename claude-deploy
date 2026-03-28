@@ -550,19 +550,7 @@ Bootstrap (run this first):
 git clone -q https://x-access-token:$TOKEN@github.com/$SKILL_BOOTSTRAP_REPO.git /home/claude/claude-deploy-skill 2>/dev/null || true
 \`\`\`
 
-Clone and push:
-\`\`\`sh
-git clone https://x-access-token:$TOKEN@github.com/<owner>/<repo>.git /home/claude/<repo>
-cd /home/claude/<repo>
-git config user.email "claude@anthropic.com" && git config user.name "Claude"
-git remote set-url origin https://x-access-token:$TOKEN@github.com/<owner>/<repo>.git
-# Always commit via commit.sh — auto-refreshes token before push:
-bash /home/claude/claude-deploy-skill/container/scripts/commit.sh /home/claude/<repo> "<message>"
-\`\`\`
-
-Constraints: no SSH, api.github.com blocked, raw.githubusercontent.com blocked, token expires in 1hr.
-Token auto-refresh: \`claude-deploy-sentinel watch\` pushes a fresh \`tok-\` file to the sentinel branch 7min before expiry. \`commit.sh\` reads the latest token from the sentinel worktree before every push — no manual intervention needed.
-On 401/403: run \`bash /home/claude/claude-deploy-skill/container/scripts/get-latest-token.sh\` first. If that fails, ask user to run \`claude-deploy token\`.
+See \`/home/claude/claude-deploy-skill/docs/context/handover.md\` for commit, token refresh, 401 recovery, and sentinel instructions.
 
 ---
 
