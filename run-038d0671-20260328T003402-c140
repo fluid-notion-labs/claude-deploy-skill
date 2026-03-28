@@ -1,0 +1,33 @@
+status: new
+main-ref: 038d067
+created: 2026-03-28T00:00:00
+msg: probe: bd help + find issue files in repos
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "=== bd deep probe ==="
+
+echo "--- bd help ---"
+bd --help 2>&1 || bd help 2>&1 || true
+
+echo "--- bd version ---"
+bd --version 2>&1 || true
+
+echo "--- find .issues / issues.json / bd issue files in repos ---"
+find ~/repos ~/code ~/projects ~/src /home/nick -maxdepth 5 \
+  \( -name "issues" -o -name ".issues" -o -name "issues.json" -o -name "*.issues" \) \
+  2>/dev/null | grep -v ".git" | head -30 || true
+
+echo "--- find bd data files anywhere ---"
+find /home/nick -maxdepth 6 -name "*.json" -path "*/issues/*" 2>/dev/null | head -20 || true
+
+echo "--- run bd list in claude-deploy-skill repo ---"
+REPO=$(find /home/nick -maxdepth 4 -name "claude-deploy-skill" -type d 2>/dev/null | grep -v ".git" | head -1)
+echo "repo: $REPO"
+if [[ -n "$REPO" ]]; then
+  cd "$REPO"
+  bd list 2>&1 || bd ls 2>&1 || true
+fi
+
+echo "=== done ==="
