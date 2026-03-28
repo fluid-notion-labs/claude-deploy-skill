@@ -1,0 +1,39 @@
+status: new
+main-ref: 038d067
+created: 2026-03-28T00:00:00
+msg: probe: bd usage check
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "=== bd usage probe ==="
+
+# Find bd binary
+echo "--- which bd ---"
+which bd 2>/dev/null || echo "bd not in PATH"
+command -v bd 2>/dev/null || true
+
+# Find bd data dirs
+echo "--- find bd dirs ---"
+find ~ -maxdepth 4 \( -name ".bd" -o -name "bd" \) -type d 2>/dev/null | grep -v ".git" | head -20 || true
+find ~ -maxdepth 5 -name "*.bd" 2>/dev/null | head -20 || true
+
+# Check common locations
+echo "--- common locations ---"
+ls ~/.bd 2>/dev/null || echo "no ~/.bd"
+ls ~/bd 2>/dev/null || echo "no ~/bd"
+
+# Check if bd is a gem/npm/cargo package
+echo "--- package managers ---"
+gem list 2>/dev/null | grep -i bd || true
+pip list 2>/dev/null | grep -i bd || true
+cargo install --list 2>/dev/null | grep -i bd || true
+
+# Any bd issues in the claude-deploy-skill repo itself?
+echo "--- repo bd check ---"
+REPO=$(find ~ -maxdepth 4 -name "claude-deploy-skill" -type d 2>/dev/null | head -1)
+if [[ -n "$REPO" ]]; then
+  find "$REPO" -name ".bd" -o -name "*.bd" 2>/dev/null | head -10 || true
+fi
+
+echo "=== done ==="
