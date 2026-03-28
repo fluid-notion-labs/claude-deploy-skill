@@ -1,9 +1,10 @@
-status: running
+status: failure
 main-ref: 038d067
 created: 2026-03-28T00:00:00
 msg: probe: bd list in FluidX3D-fork
 worker: nick-mamba-168673
 ran: 2026-03-28T00:38:23
+completed: 2026-03-28T00:38:27
 
 #!/usr/bin/env bash
 
@@ -18,3 +19,7 @@ echo "=== bd status ==="
 bd status 2>&1 | head -30
 
 echo "=== done ==="
+
+# --- log ---
+# === bd list (open issues) ===
+# /tmp/claude-run-run-038d0671-20260328T003755-39a4.sh: line 9: cd: /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/fluidscape-pipeline/FluidX3D-fork: No such file or directory
