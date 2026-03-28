@@ -1,0 +1,19 @@
+status: new
+main-ref: 43e256c
+created: 2026-03-28T00:00:00
+msg: bd list and help probe
+
+#!/usr/bin/env bash
+set -euo pipefail
+BD=/home/nick/.local/bin/bd
+echo "=== bd help ==="
+$BD --help 2>&1 || $BD help 2>&1 || true
+echo "=== bd list (cwd: ~) ==="
+cd ~ && $BD list 2>&1 || $BD ls 2>&1 || true
+REPO=$(find ~ -maxdepth 4 -name "claude-deploy-skill" -type d 2>/dev/null | grep -v ".git" | head -1)
+echo "=== bd list in claude-deploy-skill ==="
+echo "repo: $REPO"
+if [[ -n "$REPO" ]]; then
+  cd "$REPO" && $BD list 2>&1 || $BD ls 2>&1 || true
+fi
+echo "=== done ==="
