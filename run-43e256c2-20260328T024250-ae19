@@ -1,9 +1,10 @@
-status: running
+status: failure
 main-ref: 43e256c
 created: 2026-03-28T00:00:00
 msg: rebuild sentinel binary after fetch+reset fix
 worker: nick-mamba-35659
 ran: 2026-03-28T02:44:31
+completed: 2026-03-28T02:44:35
 
 #!/usr/bin/env bash
 set -euo pipefail
@@ -14,3 +15,6 @@ git pull --ff-only origin main
 cargo install --path sentinel --quiet
 echo "installed: $(which claude-deploy-sentinel)"
 echo "done"
+
+# --- log ---
+# 
