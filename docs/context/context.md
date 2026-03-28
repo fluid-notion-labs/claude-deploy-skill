@@ -204,6 +204,7 @@ Next up:
 
 ## Open
 
+- **SECURITY: tok- files on public repos expose live GitHub tokens** — sentinel branch is public for public repos. Fix: dedicated private sentinel repo per org (e.g. `fluid-notion-labs/claude-deploy-sentinels`). May also want to move `run-` files there (script bodies can leak internal info). Deferred.
 - sentinel `main-ref` checkout semantics (deferred)
 - `parse_profile` globals — `$PROFILE` and `$POSITIONAL[]` intentionally global; documented
 
