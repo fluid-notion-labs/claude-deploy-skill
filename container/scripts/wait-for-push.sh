@@ -55,6 +55,14 @@ if [[ -n "$SENTINEL_NAME" ]]; then
                 echo "✓ $SENTINEL_NAME → $STATUS (${ELAPSED}s)"
                 git -C "$REPO" show "origin/${WATCH_BRANCH}:${SENTINEL_NAME}" 2>/dev/null \
                     | awk '/^# --- log ---/{found=1; next} found{sub(/^# ?/,""); print}'
+                # Check for a fresh token while we're here
+                FRESH_TOKEN=$(bash "$(dirname "$0")/get-latest-token.sh" "$REPO" 2>/dev/null || true)
+                if [[ -n "$FRESH_TOKEN" ]]; then
+                    echo ""
+                    echo "🔑 fresh token available — update remotes with:"
+                    echo "   TOKEN=$FRESH_TOKEN"
+                    echo "   git remote set-url origin https://x-access-token:\$TOKEN@github.com/<owner>/<repo>.git"
+                fi
                 [[ "$STATUS" == "success" ]] && exit 0 || exit 1
                 ;;
             new|claiming|running)

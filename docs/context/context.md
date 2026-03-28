@@ -169,6 +169,10 @@ Binary captured to `bin/claude-deploy-sentinel` on main after each successful bu
 After every `git push`, Claude generates a diff HTML and presents it inline:
 
 ```sh
+# Preferred — auto-refreshes token before push:
+bash /home/claude/claude-deploy-skill/container/scripts/commit.sh /home/claude/<repo> "<message>"
+
+# Then generate diff:
 git diff HEAD~1 | npx --yes diff2html-cli -i stdin -o stdout --cs dark -s line \
   | sed 's|<title>.*</title>|<title>diff</title>|; s|<h1>.*</h1>||' \
   > /tmp/last-diff.html
