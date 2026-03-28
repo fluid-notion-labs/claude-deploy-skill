@@ -1,9 +1,10 @@
-status: running
+status: abandoned
 main-ref: 8779688e
 created: 2026-03-28T02:59:24
 msg: bd init in claude-deploy-skill repo
 worker: nick-mamba-78262
 ran: 2026-03-28T03:26:44
+abandoned: 2026-03-28T03:40:20
 
 #!/usr/bin/env bash
 set -euo pipefail
@@ -19,3 +20,6 @@ echo "=== bd status ==="
 bd status
 echo "=== bd types ==="
 bd types
+
+# --- abandoned ---
+# Stuck 816s. Worker: nick-mamba-78262
