@@ -1,9 +1,10 @@
-status: running
+status: failure
 main-ref: 8779688e
 created: 2026-03-28T03:01:47
 msg: probe bd output formats
 worker: nick-mamba-98775
 ran: 2026-03-28T03:40:39
+completed: 2026-03-28T03:40:48
 
 #!/usr/bin/env bash
 set -euo pipefail
@@ -25,3 +26,48 @@ $BD list --json 2>&1 | head -60
 echo "--- bd status ---"
 $BD status 2>&1 | head -20
 echo "=== done ==="
+
+# --- log ---
+# === finding bd repos ===
+# /mnt/archive-ssd/projects/fluidsim/.beads/beads.db
+# /mnt/archive-ssd/projects/fluidsim/fluidspace-pipeline/.beads/beads.db
+# /mnt/archive-ssd/projects/fluidsim/FluidX3D-stream/.beads/beads.db
+# /mnt/archive-ssd/projects/open-source/ize/.beads/beads.db
+# /mnt/archive-ssd/projects/co2/.beads/beads.db
+# /mnt/archive-ssd/projects/co2.backup/.beads/beads.db
+# /mnt/archive-ssd/projects/tildr/.beads/beads.db
+# /mnt/archive-ssd/projects/zed-focused-context-mode/.beads/beads.db
+# /mnt/archive-ssd/projects/gpui-ce/.beads/beads.db
+# /mnt/archive-ssd/projects/nursery/archivos/.beads/beads.db
+# === probing: /mnt/archive-ssd/projects/fluidsim ===
+# --- bd list ---
+# Warning: Daemon failed to start:
+# 
+# DATABASE MISMATCH DETECTED!
+# 
+# This database belongs to a different repository:
+#   Database repo ID:  988074f2
+#   Current repo ID:   d88b774f
+# 
+# This usually means:
+#   1. You copied a .beads directory from another repo (don't do this!)
+#   2. Git remote URL changed (run 'bd migrate --update-repo-id')
+#   3. Database corruption
+#   4. bd was upgraded and URL canonicalization changed
+# 
+# ⚠️  CRITICAL: This mismatch can cause beads to incorrectly delete issues during sync!
+#    The git-history-backfill mechanism may treat your local issues as deleted
+#    because they don't exist in the remote repository's history.
+# 
+# Solutions:
+#   - If remote URL changed: bd migrate --update-repo-id
+#   - If bd was upgraded: bd migrate --update-repo-id
+#   - If wrong database: rm -rf .beads && bd init
+#   - If correct database: BEADS_IGNORE_REPO_MISMATCH=1 bd daemon
+#     (Warning: This can cause data corruption and unwanted deletions across clones!)
+# 
+# Error: Database out of sync with JSONL. Run 'bd sync --import-only' to fix.
+# 
+# The JSONL file has been updated (e.g., after 'git pull') but the database
+# hasn't been imported yet. This would cause you to see stale/incomplete data.
+# 
