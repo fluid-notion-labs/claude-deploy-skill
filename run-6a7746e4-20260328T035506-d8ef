@@ -1,7 +1,8 @@
-status: new
+status: claiming
 main-ref: 6a7746e4
 created: 2026-03-28T03:55:06
 msg: rebuild — fix unused backend param
+worker: nick-mamba-119043
 
 #!/usr/bin/env bash
 set -euo pipefail
