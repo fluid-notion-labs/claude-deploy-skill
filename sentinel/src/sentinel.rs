@@ -178,6 +178,75 @@ pub fn read_all(backend: &dyn Backend) -> Result<Vec<Sentinel>> {
     Ok(sentinels)
 }
 
+// ---------------------------------------------------------------------------
+// TokenFile — tok-<org>-<YYYYMMDDTHHmmss> files on the sentinel branch
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone)]
+pub struct TokenFile {
+    pub name: String,
+    pub org: String,
+    pub token: String,
+    pub expires: DateTime<Utc>,
+    pub repos: Vec<String>,
+}
+
+impl TokenFile {
+    pub fn parse(name: impl Into<String>, content: &str) -> Option<Self> {
+        let name = name.into();
+        let mut org = None;
+        let mut token = None;
+        let mut expires = None;
+        let mut repos = Vec::new();
+        let mut in_repos = false;
+
+        for line in content.lines() {
+            if in_repos {
+                let t = line.trim();
+                if !t.is_empty() { repos.push(t.to_string()); }
+                continue;
+            }
+            if let Some(v) = field(line, "org")     { org = Some(v.to_string()); }
+            if let Some(v) = field(line, "token")   { token = Some(v.to_string()); }
+            if let Some(v) = field(line, "expires") { expires = parse_dt(v); }
+            if line.trim_end() == "repos:" { in_repos = true; }
+        }
+
+        Some(Self {
+            name,
+            org: org?,
+            token: token?,
+            expires: expires?,
+            repos,
+        })
+    }
+
+    pub fn is_valid(&self) -> bool {
+        self.expires > Utc::now()
+    }
+
+    /// Format: tok-<org>-<YYYYMMDDTHHmmss>
+    pub fn file_name(org: &str) -> String {
+        let ts = Utc::now().format("%Y%m%dT%H%M%S");
+        format!("tok-{}-{}", org, ts)
+    }
+}
+
+/// Read all tok- files from the sentinel worktree, newest first.
+pub fn read_tokens(backend: &dyn Backend) -> Result<Vec<TokenFile>> {
+    let names = backend.list_token_files()?;
+    let mut tokens: Vec<TokenFile> = names
+        .iter()
+        .filter_map(|name| {
+            backend.read_sentinel_file(name).ok()
+                .and_then(|content| TokenFile::parse(name, &content))
+        })
+        .collect();
+    // newest first (name is lexicographically sortable by timestamp)
+    tokens.sort_by(|a, b| b.name.cmp(&a.name));
+    Ok(tokens)
+}
+
 /// Generate a unique sentinel filename.
 /// Format: run-<ref8>-<YYYYMMDDTHHmmss>-<rand4>
 pub fn new_name(repo_path: &Path) -> Result<String> {

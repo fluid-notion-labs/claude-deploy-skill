@@ -220,3 +220,9 @@ Next up:
 - `scripts/dev-install.sh`: pulls latest, installs `claude-deploy` to `~/.local/bin`, `cargo install`s sentinel binary
 - `bin/` removed — captured binary superseded by `cargo install --path sentinel`
 - smoke test sentinel proven end-to-end: claim→run→log→success pipeline working
+
+_Updated this session:_
+- `watch` token auto-refresh: regenerates 7min before expiry (pure Rust JWT+GitHub API), pushes `tok-<org>-<ts>` to sentinel branch; picks up fresh tok- files automatically
+- `handover`/`token`: push `tok-` file to sentinel branch on token generation; ISO expiry stored
+- `sentinel/src/github_token.rs`: new module — AppConfig loader, RS256 JWT mint, GitHub API token exchange
+- `tok-` file type added to sentinel branch alongside `run-` files

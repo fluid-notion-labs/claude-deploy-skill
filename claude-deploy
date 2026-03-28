@@ -384,10 +384,14 @@ cmd_token() {
         --header "Accept: application/vnd.github+json" \
         --jq '.token')
 
-    EXPIRY=$(date -d '+1 hour' '+%H:%M %Z' 2>/dev/null || date -v+1H '+%H:%M %Z')
-    echo "Token valid until: $EXPIRY" >&2
+    EXPIRY_ISO=$(date -u -d '+1 hour' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -v+1H '+%Y-%m-%dT%H:%M:%SZ')
+    EXPIRY_HUMAN=$(date -d '+1 hour' '+%H:%M %Z' 2>/dev/null || date -v+1H '+%H:%M %Z')
+    echo "Token valid until: $EXPIRY_HUMAN" >&2
 
-    copy_or_print "$TOKEN" "Token copied to clipboard (valid until $EXPIRY)" --always-print
+    # Push tok- file to sentinel branch so the watcher can pick it up
+    _push_token_file "$PROFILE" "$TOKEN" "$EXPIRY_ISO" "$REPO"
+
+    copy_or_print "$TOKEN" "Token copied to clipboard (valid until $EXPIRY_HUMAN)" --always-print
 }
 
 # Print one profile name per line (default, then named orgs).
@@ -494,7 +498,11 @@ cmd_handover() {
         --header "Accept: application/vnd.github+json" \
         | jq -r '.repositories[].full_name')
 
+    EXPIRY_ISO=$(date -u -d '+1 hour' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -v+1H '+%Y-%m-%dT%H:%M:%SZ')
     EXPIRY=$(date -d '+1 hour' '+%H:%M %Z' 2>/dev/null || date -v+1H '+%H:%M %Z')
+
+    # Push tok- file to sentinel branch for watcher auto-refresh
+    _push_token_file "$PROFILE" "$TOKEN" "$EXPIRY_ISO" "$REPO"
 
     # Fetch context.md from the skill repo using the token
     SKILL_REPO="fluid-notion-labs/claude-deploy-skill"
@@ -552,6 +560,7 @@ git add -A && git commit -m "<message>" && git push origin main
 \`\`\`
 
 Constraints: no SSH, api.github.com blocked, raw.githubusercontent.com blocked, token expires in 1hr.
+Token auto-refresh: \`claude-deploy-sentinel watch\` auto-generates a fresh token 7min before expiry (reads PEM locally, pushes tok- file to sentinel branch). If watch is not running: tell user to run \`claude-deploy token\` to push a fresh token, then paste the new token into git remote URLs.
 On 401/403: tell user to run \`claude-deploy handover\` and paste new blob.
 
 ---
@@ -600,6 +609,45 @@ _sentinel_worker() { echo "${HOSTNAME:-$(hostname 2>/dev/null || echo host)}-$$"
 # Format: run-<main-ref-8>-<timestamp>-<random4>
 # random suffix prevents collisions when multiple sentinels are created
 # in the same second against the same commit.
+_push_token_file() {
+    # _push_token_file <org> <token> <expiry-iso> [<repo>]
+    # Writes a tok- file to the sentinel branch so the Rust watcher picks it up.
+    local org="$1" token="$2" expiry="$3" repo="${4:-}"
+    local ts name wt repo_dir
+
+    # Find the repo dir (cwd or infer from git remote)
+    repo_dir=$(git rev-parse --show-toplevel 2>/dev/null || true)
+    [[ -z "$repo_dir" ]] && return 0  # not in a git repo, skip silently
+
+    wt="$repo_dir/.git/claude-sentinel-wt"
+    [[ -d "$wt" ]] || return 0  # watcher not running, skip silently
+
+    ts=$(date -u '+%Y%m%dT%H%M%S')
+    name="tok-${org}-${ts}"
+
+    # Get repos list if we have a token
+    local repos=""
+    if [[ -n "$repo" ]]; then
+        repos="  $repo"
+    fi
+
+    cat > "$wt/$name" << TOKEOF
+type: token
+org: $org
+token: $token
+expires: $expiry
+repos:
+$repos
+TOKEOF
+
+    (cd "$repo_dir" && \
+        git -C "$wt" add "$name" && \
+        git -C "$wt" commit -m "token: $name" -q && \
+        git -C "$wt" push origin HEAD:claude-deploy-sentinels -q \
+    ) 2>/dev/null || true
+    echo "Token file pushed to sentinel branch: $name" >&2
+}
+
 _sentinel_new_name() {
     local repo="${1:-$PWD}"
     local ref ts rand

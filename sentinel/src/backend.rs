@@ -32,6 +32,9 @@ pub trait Backend: Send + Sync {
     fn fetch_sentinel_branch(&self) -> Result<()>;
     fn list_sentinels(&self) -> Result<Vec<String>>;
     fn read_sentinel(&self, name: &str) -> Result<String>;
+    fn list_token_files(&self) -> Result<Vec<String>>;
+    fn read_sentinel_file(&self, name: &str) -> Result<String>;
+    fn push_token_file(&self, name: &str, content: &str) -> Result<()>;
 
     // --- sentinel branch writes (all via worktree — no main-tree checkout) ---
     fn ensure_sentinel_branch(&self) -> Result<()>;
@@ -253,8 +256,6 @@ impl Backend for GitShellBackend {
     }
 
     fn list_sentinels(&self) -> Result<Vec<String>> {
-        // Always read from origin ref — guaranteed fresh after fetch_sentinel_branch.
-        // Worktree is for writes only.
         let out = self.git(&["ls-tree", "-r", "--name-only",
             &format!("origin/{}", SENTINEL_BRANCH)])?;
         Ok(out.lines()
@@ -264,12 +265,30 @@ impl Backend for GitShellBackend {
     }
 
     fn read_sentinel(&self, name: &str) -> Result<String> {
-        // Always read from origin ref — never from stale worktree disk state.
         self.git(&["show", &format!("origin/{}:{}", SENTINEL_BRANCH, name)])
     }
 
-    fn ensure_sentinel_branch(&self) -> Result<()> {
-        self.ensure_worktree()
+    fn list_token_files(&self) -> Result<Vec<String>> {
+        let out = self.git(&["ls-tree", "-r", "--name-only",
+            &format!("origin/{}", SENTINEL_BRANCH)])?;
+        Ok(out.lines()
+            .filter(|l| l.starts_with("tok-"))
+            .map(|l| l.to_string())
+            .collect())
+    }
+
+    fn read_sentinel_file(&self, name: &str) -> Result<String> {
+        self.git(&["show", &format!("origin/{}:{}", SENTINEL_BRANCH, name)])
+    }
+
+    fn push_token_file(&self, name: &str, content: &str) -> Result<()> {
+        self.ensure_worktree()?;
+        std::fs::write(self.sentinel_path(name), content)
+            .with_context(|| format!("write token file {}", name))?;
+        self.git_wt(&["add", name])?;
+        self.git_wt(&["commit", "-m", &format!("token: {}", name), "-q"])?;
+        self.git_wt(&["push", "origin", SENTINEL_BRANCH, "-q"])?;
+        Ok(())
     }
 
     fn push_sentinel(&self, name: &str, content: &str, commit_msg: &str) -> Result<()> {

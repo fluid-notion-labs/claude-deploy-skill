@@ -1,5 +1,6 @@
 mod backend;
 mod commands;
+mod github_token;
 mod sentinel;
 
 use anyhow::Result;

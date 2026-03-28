@@ -1,5 +1,5 @@
 use crate::backend::{worker_id, set_fields, Backend};
-use crate::sentinel::{self, Sentinel, Status, SENTINEL_BRANCH};
+use crate::sentinel::{self, Sentinel, Status, TokenFile, SENTINEL_BRANCH};
 use anyhow::Result;
 use chrono::Utc;
 use std::io::{BufRead, BufReader};
@@ -82,8 +82,80 @@ pub async fn run(
 
     let mut last_ref = backend.head_sha()?;
 
+    // Token refresh state
+    let mut token_expiry: Option<chrono::DateTime<Utc>> = None;
+    let mut token_org: Option<String> = None;
+    const REFRESH_SECS_BEFORE: i64 = 7 * 60; // refresh 7 min before expiry
+
     loop {
         let ts = Utc::now().format("%H:%M:%S").to_string();
+
+        // --- Token refresh check (commands mode only — needs sentinel branch) ---
+        if commands_mode {
+            let now = Utc::now();
+            let needs_refresh = token_expiry
+                .map(|exp| (exp - now).num_seconds() < REFRESH_SECS_BEFORE)
+                .unwrap_or(false);
+
+            if needs_refresh {
+                // First check if a fresh tok- file already landed (e.g. from another session)
+                let fresh = sentinel::read_tokens(backend)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .find(|t| t.is_valid() && t.name > token_org.as_deref().unwrap_or(""));
+
+                if let Some(tok) = fresh {
+                    let mins = (tok.expires - now).num_minutes();
+                    println!("[{}] 🔑 token refreshed from branch (org: {}, {}min remaining)",
+                        ts, tok.org, mins);
+                    update_remote_token(&repo_path, &tok.token);
+                    token_expiry = Some(tok.expires);
+                    token_org = Some(tok.name.clone());
+                } else {
+                    // Generate fresh token ourselves
+                    let org = token_org.as_deref().unwrap_or("default");
+                    // Extract just the org name from "tok-<org>-<ts>" if needed
+                    let org_name = org.strip_prefix("tok-")
+                        .and_then(|s| s.rsplitn(2, '-').nth(1))
+                        .unwrap_or(org);
+                    println!("[{}] 🔄 token expiring soon — generating fresh token (org: {})", ts, org_name);
+                    match crate::github_token::AppConfig::load(org_name)
+                        .and_then(|cfg| crate::github_token::generate_token(&cfg))
+                    {
+                        Ok(gen) => {
+                            let tok_name = crate::sentinel::TokenFile::file_name(&gen.org);
+                            let content = gen.to_tok_file();
+                            match backend.push_token_file(&tok_name, &content) {
+                                Ok(_) => {
+                                    let mins = (gen.expires - now).num_minutes();
+                                    println!("[{}] 🔑 fresh token pushed (org: {}, {}min remaining)",
+                                        ts, gen.org, mins);
+                                    update_remote_token(&repo_path, &gen.token);
+                                    token_expiry = Some(gen.expires);
+                                    token_org = Some(tok_name);
+                                }
+                                Err(e) => eprintln!("[{}] ⚠ push token file failed: {}", ts, e),
+                            }
+                        }
+                        Err(e) => eprintln!("[{}] ⚠ token refresh failed: {}", ts, e),
+                    }
+                }
+            }
+
+            // Pick up initial token from branch on first loop / if not yet set
+            if token_expiry.is_none() {
+                if let Ok(tokens) = sentinel::read_tokens(backend) {
+                    if let Some(tok) = tokens.into_iter().find(|t| t.is_valid()) {
+                        let mins = (tok.expires - Utc::now()).num_minutes();
+                        println!("[{}] 🔑 token loaded (org: {}, {}min remaining)",
+                            ts, tok.org, mins);
+                        update_remote_token(&repo_path, &tok.token);
+                        token_expiry = Some(tok.expires);
+                        token_org = Some(tok.name.clone());
+                    }
+                }
+            }
+        }
 
         // Pull main once at top of loop
         let _ = backend.pull_main(&branch);
@@ -340,4 +412,27 @@ fn reap_abandoned(
 
 fn shell_escape(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
+}
+
+/// Update the git remote URL in the repo to use the fresh token.
+fn update_remote_token(repo_path: &Path, token: &str) {
+    // Read current remote URL, swap in new token
+    let url_out = std::process::Command::new("git")
+        .arg("-C").arg(repo_path)
+        .args(["remote", "get-url", "origin"])
+        .output();
+    if let Ok(out) = url_out {
+        let url = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        // Replace x-access-token:<old>@ with x-access-token:<new>@
+        let new_url = if let Some(at) = url.find('@') {
+            let host_and_path = &url[at..];
+            format!("https://x-access-token:{}{}", token, host_and_path)
+        } else {
+            return;
+        };
+        let _ = std::process::Command::new("git")
+            .arg("-C").arg(repo_path)
+            .args(["remote", "set-url", "origin", &new_url])
+            .status();
+    }
 }
