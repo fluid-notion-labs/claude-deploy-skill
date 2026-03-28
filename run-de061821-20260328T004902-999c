@@ -1,9 +1,10 @@
-status: running
+status: failure
 main-ref: de06182
 created: 2026-03-28T00:00:00
 msg: rebuild sentinel binary after fetch+reset fix
 worker: nick-mamba-35659
 ran: 2026-03-28T02:44:52
+completed: 2026-03-28T02:44:56
 
 #!/usr/bin/env bash
 set -euo pipefail
@@ -16,3 +17,6 @@ cargo install --path sentinel --quiet
 echo "installed: $(which claude-deploy-sentinel)"
 claude-deploy-sentinel --version 2>/dev/null || true
 echo "done"
+
+# --- log ---
+# 
