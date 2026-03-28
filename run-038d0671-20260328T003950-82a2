@@ -1,9 +1,10 @@
-status: running
+status: abandoned
 main-ref: 038d067
 created: 2026-03-28T00:00:00
 msg: bd list open issues — active pipeline repos
 worker: nick-mamba-168673
 ran: 2026-03-28T00:40:13
+abandoned: 2026-03-28T02:43:20
 
 #!/usr/bin/env bash
 
@@ -38,3 +39,6 @@ done
 
 echo ""
 echo "=== done ==="
+
+# --- abandoned ---
+# Stuck 7387s. Worker: nick-mamba-168673
