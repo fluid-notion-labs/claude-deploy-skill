@@ -49,18 +49,11 @@ Tokens expire after 1hr. The sentinel watcher auto-refreshes:
 **On 401/403 in a Claude session:** before asking the user for a new handover, check the sentinel branch for a fresh `tok-` file:
 
 ```sh
-# In the repo worktree:
-cd /home/claude/claude-deploy-skill/.git/claude-sentinel-wt
-git fetch origin claude-deploy-sentinels -q && git reset --hard origin/claude-deploy-sentinels -q
-# Find latest tok- file
-ls tok-* 2>/dev/null | sort | tail -1
-# Extract token
-grep "^token:" <latest-tok-file> | awk '{print $2}'
-# Then update remote:
-git -C /home/claude/<repo> remote set-url origin https://x-access-token:<token>@github.com/<owner>/<repo>.git
+TOKEN=$(bash /home/claude/claude-deploy-skill/container/scripts/get-latest-token.sh)
+git -C /home/claude/<repo> remote set-url origin https://x-access-token:$TOKEN@github.com/<owner>/<repo>.git
 ```
 
-If no valid `tok-` file exists (watcher not running), then ask user to run `claude-deploy token`.
+If that fails (no valid token, watcher not running), then ask user to run `claude-deploy token`.
 
 
 
