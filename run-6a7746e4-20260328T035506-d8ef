@@ -1,9 +1,10 @@
-status: running
+status: success
 main-ref: 6a7746e4
 created: 2026-03-28T03:55:06
 msg: rebuild — fix unused backend param
 worker: nick-mamba-119043
 ran: 2026-03-28T04:04:31
+completed: 2026-03-28T04:04:36
 
 #!/usr/bin/env bash
 set -euo pipefail
@@ -11,3 +12,20 @@ cd /home/nick/projects/nursery/claude-deploy-skill
 git pull --ff-only origin main
 cargo install --path sentinel --quiet
 echo "done: $(claude-deploy-sentinel --version 2>/dev/null || echo installed)"
+
+# --- log ---
+# From github.com:fluid-notion-labs/claude-deploy-skill
+#  * branch            main       -> FETCH_HEAD
+# Already up to date.
+# warning: method `is_terminal` is never used
+#   --> src/sentinel.rs:37:12
+#    |
+# 24 | impl Status {
+#    | ----------- method in this implementation
+# ...
+# 37 |     pub fn is_terminal(&self) -> bool {
+#    |            ^^^^^^^^^^^
+#    |
+#    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+# 
+# done: claude-sentinel 0.1.0
