@@ -1,0 +1,38 @@
+status: new
+main-ref: 038d067
+created: 2026-03-28T00:00:00
+msg: bd list open issues — active pipeline repos
+
+#!/usr/bin/env bash
+
+BASE="/mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09"
+
+REPOS=(
+  "$BASE/projects/fluidsim"
+  "$BASE/projects/fluidsim/fluidspace-pipeline"
+  "$BASE/projects/fluidsim/fluidspace-pipeline/seaview-pipeline"
+  "$BASE/projects/fluidsim/fluidspace-pipeline/seaview"
+  "$BASE/projects/fluidsim/fluidspace-pipeline/FluidX3D-case"
+  "$BASE/projects/fluidsim/fluidspace-pipeline/fluidspace"
+  "$BASE/projects/fluidsim/fluidspace-pipeline/manifold"
+  "$BASE/projects/fluidsim/FluidX3D-stream"
+)
+
+for repo in "${REPOS[@]}"; do
+  if [[ -f "$repo/.beads/beads.db" ]]; then
+    echo ""
+    echo "### $(basename $repo)"
+    cd "$repo"
+    bd list --json 2>/dev/null | python3 -c "
+import json, sys
+issues = json.load(sys.stdin)
+for i in issues:
+    state = i.get('state','?')
+    if state not in ('open','new','active'): continue
+    print(f'  #{i[\"id\"]} {i.get(\"title\",\"?\")}')
+" 2>/dev/null || bd list 2>&1 | head -40 || echo "(empty or error)"
+  fi
+done
+
+echo ""
+echo "=== done ==="
