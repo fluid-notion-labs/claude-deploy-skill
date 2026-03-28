@@ -1,0 +1,16 @@
+status: new
+main-ref: de06182
+created: 2026-03-28T00:00:00
+msg: rebuild sentinel binary after fetch+reset fix
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO=$(find ~ -maxdepth 4 -name "claude-deploy-skill" -type d 2>/dev/null | grep -v ".git" | head -1)
+echo "repo: $REPO"
+cd "$REPO"
+git pull --ff-only origin main
+cargo install --path sentinel --quiet
+echo "installed: $(which claude-deploy-sentinel)"
+claude-deploy-sentinel --version 2>/dev/null || true
+echo "done"
