@@ -1,9 +1,10 @@
-status: running
+status: success
 main-ref: 038d067
 created: 2026-03-28T00:00:00
 msg: probe: list issues from ~/.beads and ~/.beads-planning
 worker: nick-mamba-168673
 ran: 2026-03-28T00:35:59
+completed: 2026-03-28T00:36:03
 
 #!/usr/bin/env bash
 
@@ -25,3 +26,15 @@ if [[ -n "$REPO" ]]; then
 fi
 
 echo "=== done ==="
+
+# --- log ---
+# === ~/.beads ===
+# Error: failed to open database: failed to enable WAL mode: sqlite3: unable to open database file: open /home/nick/.beads: is a directory
+# 
+# === ~/.beads-planning ===
+# Note: No git repository initialized - running without background sync
+# Error: failed to open database: failed to enable WAL mode: sqlite3: unable to open database file: open /home/nick/.beads-planning/.beads: is a directory
+# 
+# === claude-deploy-skill issues ===
+# repo: 
+# === done ===
