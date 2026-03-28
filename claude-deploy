@@ -556,12 +556,13 @@ git clone https://x-access-token:$TOKEN@github.com/<owner>/<repo>.git /home/clau
 cd /home/claude/<repo>
 git config user.email "claude@anthropic.com" && git config user.name "Claude"
 git remote set-url origin https://x-access-token:$TOKEN@github.com/<owner>/<repo>.git
-git add -A && git commit -m "<message>" && git push origin main
+# Always commit via commit.sh — auto-refreshes token before push:
+bash /home/claude/claude-deploy-skill/container/scripts/commit.sh /home/claude/<repo> "<message>"
 \`\`\`
 
 Constraints: no SSH, api.github.com blocked, raw.githubusercontent.com blocked, token expires in 1hr.
-Token auto-refresh: \`claude-deploy-sentinel watch\` auto-generates a fresh token 7min before expiry (reads PEM locally, pushes tok- file to sentinel branch). If watch is not running: tell user to run \`claude-deploy token\` to push a fresh token, then paste the new token into git remote URLs.
-On 401/403: tell user to run \`claude-deploy handover\` and paste new blob.
+Token auto-refresh: \`claude-deploy-sentinel watch\` pushes a fresh \`tok-\` file to the sentinel branch 7min before expiry. \`commit.sh\` reads the latest token from the sentinel worktree before every push — no manual intervention needed.
+On 401/403: run \`bash /home/claude/claude-deploy-skill/container/scripts/get-latest-token.sh\` first. If that fails, ask user to run \`claude-deploy token\`.
 
 ---
 
