@@ -33,11 +33,16 @@ pub async fn run(
     loop {
         let ts = Utc::now().format("%H:%M:%S").to_string();
 
-        if commands_mode {
-            // Pull main first — sentinels run against latest
-            let _ = backend.pull_main(&branch);
+        // Pull main once at top of loop — sentinels run against latest
+        let _ = backend.pull_main(&branch);
+        let after = backend.head_sha().unwrap_or_default();
+        if last_ref != after {
+            println!("[{}] ✓ main → {}", ts, &after[..8]);
+            last_ref = after.clone();
+        }
 
-            // Fetch + pull into worktree — main tree untouched
+        if commands_mode {
+            // Sync sentinel worktree
             let _ = backend.fetch_sentinel_branch();
 
             reap_abandoned(backend, &repo_path, 600)?;
@@ -51,10 +56,11 @@ pub async fn run(
                 }
             };
 
+            // Drain all new sentinels before sleeping — no re-pull between them
             for s in sentinels.iter().filter(|s| s.status == Status::New) {
+                let ts = Utc::now().format("%H:%M:%S").to_string();
                 println!("[{}] ⚡ sentinel: {}", ts, s.name);
 
-                // Claim via worktree — no checkout of main tree
                 let worker = worker_id();
                 match backend.claim_sentinel(&s.name, &worker) {
                     Ok(false) => {
@@ -68,7 +74,6 @@ pub async fn run(
                     Ok(true) => {}
                 }
 
-                // Verify claim on origin
                 match backend.sentinel_worker_on_origin(&s.name) {
                     Ok(Some(w)) if w == worker => {}
                     Ok(Some(other)) => {
@@ -88,14 +93,6 @@ pub async fn run(
 
                 println!("[{}] ✓ done", Utc::now().format("%H:%M:%S"));
             }
-        }
-
-        // Watch main — no branch switch needed
-        let _ = backend.pull_main(&branch);
-        let after = backend.head_sha().unwrap_or_default();
-        if last_ref != after {
-            println!("[{}] ✓ main → {}", ts, &after[..8]);
-            last_ref = after;
         }
 
         sleep(Duration::from_secs(interval)).await;
