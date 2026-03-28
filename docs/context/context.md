@@ -38,9 +38,31 @@ claude-deploy status   [--org <n>]                   # show current config
   repo/                   # git clone of claude-deploy-skill (used by update/auto-update)
 ```
 
-## Token refresh mid-session
+## Token refresh
 
-Use `claude-deploy token` (run inside the target repo) — infers owner/repo from git remote, puts fresh token on clipboard. Use `handover` only when starting a new session or switching repos.
+Tokens expire after 1hr. The sentinel watcher auto-refreshes:
+
+1. `handover`/`token` pushes a `tok-<org>-<ts>` file to the sentinel branch
+2. Watcher picks it up, updates git remote credentials, tracks expiry
+3. 7min before expiry, watcher generates a fresh token (pure Rust: RS256 JWT → GitHub API) and pushes a new `tok-` file — cycle repeats indefinitely
+
+**On 401/403 in a Claude session:** before asking the user for a new handover, check the sentinel branch for a fresh `tok-` file:
+
+```sh
+# In the repo worktree:
+cd /home/claude/claude-deploy-skill/.git/claude-sentinel-wt
+git fetch origin claude-deploy-sentinels -q && git reset --hard origin/claude-deploy-sentinels -q
+# Find latest tok- file
+ls tok-* 2>/dev/null | sort | tail -1
+# Extract token
+grep "^token:" <latest-tok-file> | awk '{print $2}'
+# Then update remote:
+git -C /home/claude/<repo> remote set-url origin https://x-access-token:<token>@github.com/<owner>/<repo>.git
+```
+
+If no valid `tok-` file exists (watcher not running), then ask user to run `claude-deploy token`.
+
+
 
 ## Container constraints
 
