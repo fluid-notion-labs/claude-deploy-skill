@@ -189,6 +189,7 @@ Next up:
 
 ## Done (this session)
 
+- `pull_worktree_clean()`: fetch+reset --hard instead of pull --ff-only — fixes "claim failed: read sentinel" loop when worktree is detached
 - `pull_worktree_clean()`: auto-commit dirty worktree before pull — fixes Cargo.lock / stray file errors
 - `watch --commands` now default; use `--no-commands` to disable sentinel execution
 - worktree `remove --force` before `add` — fixes "already used by worktree" error on restart
