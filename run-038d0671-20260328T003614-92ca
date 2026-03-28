@@ -1,0 +1,25 @@
+status: new
+main-ref: 038d067
+created: 2026-03-28T00:00:00
+msg: probe: ls inside .beads dirs, then bd list
+
+#!/usr/bin/env bash
+
+echo "=== ls ~/.beads ==="
+ls -la /home/nick/.beads/
+
+echo ""
+echo "=== ls ~/.beads-planning/.beads ==="
+ls -la /home/nick/.beads-planning/.beads/
+
+echo ""
+echo "=== bd list from ~/.beads-planning ==="
+cd /home/nick/.beads-planning
+bd list 2>&1 | head -80 || true
+
+echo ""
+echo "=== bd where (from home) ==="
+cd /home/nick
+bd where 2>&1 || true
+
+echo "=== done ==="
