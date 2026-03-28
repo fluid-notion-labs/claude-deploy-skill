@@ -1,0 +1,31 @@
+status: new
+main-ref: 038d067
+created: 2026-03-28T00:00:00
+msg: probe: bd list and help
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+BD=/home/nick/.local/bin/bd
+
+echo "=== bd help ==="
+$BD --help 2>&1 || $BD help 2>&1 || true
+
+echo "=== bd list (cwd: ~) ==="
+cd ~ && $BD list 2>&1 || $BD ls 2>&1 || true
+
+echo "=== bd list in claude-deploy-skill ==="
+REPO=$(find ~ -maxdepth 4 -name "claude-deploy-skill" -type d 2>/dev/null | grep -v ".git" | head -1)
+echo "repo: $REPO"
+if [[ -n "$REPO" ]]; then
+  cd "$REPO" && $BD list 2>&1 || $BD ls 2>&1 || true
+fi
+
+echo "=== bd data location ==="
+$BD --version 2>&1 || true
+# check for config file
+cat ~/.bdrc 2>/dev/null || cat ~/.config/bd/config 2>/dev/null || true
+# find the actual data store
+find ~ -maxdepth 5 -name "issues" -type d 2>/dev/null | grep -v ".git\|node_modules\|.cache" | head -10
+
+echo "=== done ==="
