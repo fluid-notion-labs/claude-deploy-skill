@@ -8,6 +8,10 @@
 
 `fluid-notion-labs/claude-deploy-skill`
 
+### Local path (nick's dev desktop)
+
+`/mnt/archive-ssd/projects/nursery/claude-deploy-skill`
+
 ## Commands
 
 ```sh
