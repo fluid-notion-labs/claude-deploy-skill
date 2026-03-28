@@ -1,8 +1,9 @@
-status: claiming
+status: running
 main-ref: 038d067
 created: 2026-03-28T00:00:00
 msg: probe: mounts + find beads.db anywhere accessible
 worker: nick-mamba-168673
+ran: 2026-03-28T00:39:11
 
 #!/usr/bin/env bash
 
