@@ -1,0 +1,25 @@
+status: new
+main-ref: 8779688e
+created: 2026-03-28T03:01:47
+msg: probe bd output formats
+
+#!/usr/bin/env bash
+set -euo pipefail
+BD=/home/nick/.local/bin/bd
+
+# find a repo that has bd
+echo "=== finding bd repos ==="
+find /mnt/archive-ssd/projects -maxdepth 4 -name "*.db" -path "*/.beads/*" 2>/dev/null | head -10
+find ~/projects -maxdepth 4 -name "*.db" -path "*/.beads/*" 2>/dev/null | head -10 || true
+
+# pick first one and probe
+BEADS_REPO=$(find /mnt/archive-ssd/projects ~/projects -maxdepth 4 -name "*.db" -path "*/.beads/*" 2>/dev/null | head -1 | xargs -I{} dirname {} | xargs -I{} dirname {})
+echo "=== probing: $BEADS_REPO ==="
+cd "$BEADS_REPO"
+echo "--- bd list ---"
+$BD list 2>&1 | head -30
+echo "--- bd list --json ---"
+$BD list --json 2>&1 | head -60
+echo "--- bd status ---"
+$BD status 2>&1 | head -20
+echo "=== done ==="
