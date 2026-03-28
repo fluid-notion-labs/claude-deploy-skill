@@ -1,5 +1,5 @@
 use crate::backend::{worker_id, set_fields, Backend};
-use crate::sentinel::{self, Sentinel, Status, TokenFile, SENTINEL_BRANCH};
+use crate::sentinel::{self, Sentinel, Status, SENTINEL_BRANCH};
 use anyhow::Result;
 use chrono::Utc;
 use std::io::{BufRead, BufReader};
@@ -102,7 +102,7 @@ pub async fn run(
                 let fresh = sentinel::read_tokens(backend)
                     .unwrap_or_default()
                     .into_iter()
-                    .find(|t| t.is_valid() && t.name > token_org.as_deref().unwrap_or(""));
+                    .find(|t| t.is_valid() && t.name.as_str() > token_org.as_deref().unwrap_or(""));
 
                 if let Some(tok) = fresh {
                     let mins = (tok.expires - now).num_minutes();

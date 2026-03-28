@@ -281,6 +281,10 @@ impl Backend for GitShellBackend {
         self.git(&["show", &format!("origin/{}:{}", SENTINEL_BRANCH, name)])
     }
 
+    fn ensure_sentinel_branch(&self) -> Result<()> {
+        self.ensure_worktree()
+    }
+
     fn push_token_file(&self, name: &str, content: &str) -> Result<()> {
         self.ensure_worktree()?;
         std::fs::write(self.sentinel_path(name), content)

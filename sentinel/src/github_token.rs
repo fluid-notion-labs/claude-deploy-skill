@@ -10,7 +10,7 @@
 //!   4. POST /app/installations/<id>/access_tokens → token + expiry
 //!   5. GET /installation/repositories → list of repo full_names
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
