@@ -1,7 +1,8 @@
-status: new
+status: claiming
 main-ref: 038d067
 created: 2026-03-28T00:00:00
 msg: probe: list issues from ~/.beads and ~/.beads-planning
+worker: nick-mamba-168673
 
 #!/usr/bin/env bash
 
