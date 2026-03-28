@@ -1,9 +1,10 @@
-status: running
+status: success
 main-ref: 038d067
 created: 2026-03-28T00:00:00
 msg: probe: mounts + find beads.db anywhere accessible
 worker: nick-mamba-168673
 ran: 2026-03-28T00:39:11
+completed: 2026-03-28T00:39:29
 
 #!/usr/bin/env bash
 
@@ -19,3 +20,59 @@ echo "=== find .beads dirs (all) ==="
 find / -maxdepth 8 -type d -name ".beads" 2>/dev/null | grep -v ".cargo\|proc\|sys" | head -20
 
 echo "=== done ==="
+
+# --- log ---
+# === mounts ===
+# Filesystem      Size  Used Avail Use% Mounted on
+# /dev/nvme0n1p3 1013G  787G  175G  82% /
+# efivarfs        128K   51K   73K  42% /sys/firmware/efi/efivars
+# /dev/nvme0n1p2  1.1G  6.3M  1.1G   1% /boot/efi
+# /dev/sdc1       1.9T  1.5T  412G  78% /mnt/archive-ssd
+# /dev/sda1       7.3T  514G  6.8T   7% /mnt/hdd1
+# /dev/sdb1       7.3T  5.7M  7.3T   1% /mnt/hdd2
+# pool             17T  2.0T   15T  12% /mnt/pool
+# 
+# === find beads.db ===
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/.beads/beads.db
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/old/loadfu/.beads/beads.db
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/old/seaview-stable/.beads/beads.db
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/fluidspace-pipeline/.beads/beads.db
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/fluidspace-pipeline/manifold/.beads/beads.db
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/fluidspace-pipeline/fluidspace/.beads/beads.db
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/fluidspace-pipeline/FluidX3D-case/.beads/beads.db
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/fluidspace-pipeline/seaview-pipeline/.beads/beads.db
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/fluidspace-pipeline/seaview-old/.beads/beads.db
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/FluidX3D-stream/.beads/beads.db
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/open-source/ize/.beads/beads.db
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/co2/.beads/beads.db
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/co2.backup/.beads/beads.db
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/tildr/.beads/beads.db
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/zed-focused-context-mode/.beads/beads.db
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/gpui-ce/.beads/beads.db
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/nursery/archivos/.beads/beads.db
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/backup/old-in-fluidsim/fluidx3d-old-repos/FluidX3D-old/.beads/beads.db
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/backup/old-in-fluidsim/fluidx3d-old-repos/FluidX3D-stream/.beads/beads.db
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/backup/old-in-fluidsim/old-fluidspace/.beads/beads.db
+# 
+# === find .beads dirs (all) ===
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/.beads
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/old/loadfu/.beads
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/old/old2/fluidscape-old/.beads
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/old/open-source/fluid/.beads
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/old/seaview-stable/.beads
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/fluidspace-pipeline/.beads
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/fluidspace-pipeline/manifold/.beads
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/fluidspace-pipeline/fluidspace/.beads
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/fluidspace-pipeline/FluidX3D-case/.beads
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/fluidspace-pipeline/vendor/loadfu/.beads
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/fluidspace-pipeline/seaview-pipeline/.beads
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/fluidspace-pipeline/seaview-old/.beads
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/fluidspace-pipeline/seaview-old-new/.beads
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/fluidspace-pipeline/seaview/.beads
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/FluidX3D-stream/.beads
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/open-source/ize/.beads
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/scratch/vg/.beads
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/zed/.beads
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/co2/.beads
+# /mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/co2.backup/.beads
+# === done ===
