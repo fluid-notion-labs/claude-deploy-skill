@@ -1,0 +1,25 @@
+status: new
+main-ref: 038d067
+created: 2026-03-28T00:00:00
+msg: probe: list issues from ~/.beads and ~/.beads-planning
+
+#!/usr/bin/env bash
+
+echo "=== ~/.beads ==="
+cd /home/nick
+bd --db /home/nick/.beads list 2>&1 | head -60 || true
+
+echo ""
+echo "=== ~/.beads-planning ==="
+bd --db /home/nick/.beads-planning/.beads list 2>&1 | head -60 || true
+
+echo ""
+echo "=== claude-deploy-skill issues ==="
+REPO=$(find /home/nick -maxdepth 4 -name "claude-deploy-skill" -type d 2>/dev/null | grep -v ".git\|cargo" | head -1)
+echo "repo: $REPO"
+if [[ -n "$REPO" ]]; then
+  cd "$REPO"
+  bd list 2>&1 | head -60 || true
+fi
+
+echo "=== done ==="
