@@ -1,0 +1,19 @@
+status: new
+main-ref: 8779688e
+created: 2026-03-28T02:59:24
+msg: bd init in claude-deploy-skill repo
+
+#!/usr/bin/env bash
+set -euo pipefail
+cd /mnt/archive-ssd/projects/nursery/claude-deploy-skill
+if [[ -d .beads ]]; then
+  echo "already initialised:"
+  ls .beads/
+else
+  bd init
+  echo "init done"
+fi
+echo "=== bd status ==="
+bd status
+echo "=== bd types ==="
+bd types
