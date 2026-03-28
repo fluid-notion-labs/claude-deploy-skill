@@ -1,9 +1,10 @@
-status: running
+status: failure
 main-ref: e47df211
 created: 2026-03-28T07:32:15
 msg: rebuild — token auto-refresh (jsonwebtoken + ureq)
 worker: nick-mamba-119043
 ran: 2026-03-28T07:32:33
+completed: 2026-03-28T07:32:56
 
 #!/usr/bin/env bash
 set -euo pipefail
@@ -11,3 +12,48 @@ cd /home/nick/projects/nursery/claude-deploy-skill
 git pull --ff-only origin main
 cargo install --path sentinel --quiet
 echo "done: $(claude-deploy-sentinel --version 2>/dev/null || echo installed)"
+
+# --- log ---
+# From github.com:fluid-notion-labs/claude-deploy-skill
+#  * branch            main       -> FETCH_HEAD
+# Already up to date.
+# warning: unused import: `TokenFile`
+#  --> src/commands/watch.rs:2:47
+#   |
+# 2 | use crate::sentinel::{self, Sentinel, Status, TokenFile, SENTINEL_BRANCH};
+#   |                                               ^^^^^^^^^
+#   |
+#   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+# 
+# warning: unused import: `bail`
+#   --> src/github_token.rs:13:31
+#    |
+# 13 | use anyhow::{Context, Result, bail};
+#    |                               ^^^^
+# 
+# error[E0046]: not all trait items implemented, missing: `ensure_sentinel_branch`
+#    --> src/backend.rs:236:1
+#     |
+#  40 |     fn ensure_sentinel_branch(&self) -> Result<()>;
+#     |     ----------------------------------------------- `ensure_sentinel_branch` from trait
+# ...
+# 236 | impl Backend for GitShellBackend {
+#     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing `ensure_sentinel_branch` in implementation
+# 
+# error[E0277]: can't compare `std::string::String` with `&str`
+#    --> src/commands/watch.rs:105:54
+#     |
+# 105 |                     .find(|t| t.is_valid() && t.name > token_org.as_deref().unwrap_or(""));
+#     |                                                      ^ no implementation for `std::string::String < &str` and `std::string::String > &str`
+#     |
+#     = help: the trait `PartialOrd<&str>` is not implemented for `std::string::String`
+# help: consider dereferencing both sides of the expression
+#     |
+# 105 |                     .find(|t| t.is_valid() && *t.name > *token_org.as_deref().unwrap_or(""));
+#     |                                               +         +
+# 
+# Some errors have detailed explanations: E0046, E0277.
+# For more information about an error, try `rustc --explain E0046`.
+# error: could not compile `claude-deploy-sentinel` (bin "claude-deploy-sentinel") due to 2 previous errors; 2 warnings emitted
+# error: failed to compile `claude-deploy-sentinel v0.1.0 (/mnt/archive-ssd/projects/nursery/claude-deploy-skill/sentinel)`, intermediate artifacts can be found at `/mnt/archive-ssd/projects/nursery/claude-deploy-skill/sentinel/target`.
+# To reuse those artifacts with a future compilation, set the environment variable `CARGO_TARGET_DIR` to that path.
