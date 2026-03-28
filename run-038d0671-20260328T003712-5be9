@@ -1,0 +1,55 @@
+status: new
+main-ref: 038d067
+created: 2026-03-28T00:00:00
+msg: probe: registry.json + bd list in registered repos
+
+#!/usr/bin/env bash
+
+echo "=== registry.json ==="
+cat /home/nick/.beads/registry.json
+
+echo ""
+echo "=== bd list in each registered repo ==="
+# Parse paths from registry.json and run bd list in each
+python3 -c "
+import json, subprocess, os
+with open('/home/nick/.beads/registry.json') as f:
+    reg = json.load(f)
+print('keys:', list(reg.keys()))
+# try common structures
+for k, v in reg.items():
+    if isinstance(v, str):
+        print(f'  {k}: {v}')
+    elif isinstance(v, dict):
+        path = v.get('path') or v.get('dir') or v.get('root')
+        if path:
+            print(f'  {k}: {path}')
+" 2>&1
+
+echo ""
+# Also just try each path that looks like a repo dir
+python3 -c "
+import json, subprocess, os
+with open('/home/nick/.beads/registry.json') as f:
+    reg = json.load(f)
+
+def get_paths(obj):
+    paths = []
+    if isinstance(obj, str) and obj.startswith('/'):
+        paths.append(obj)
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            paths.extend(get_paths(v))
+    elif isinstance(obj, list):
+        for v in obj:
+            paths.extend(get_paths(v))
+    return paths
+
+for path in get_paths(reg):
+    if os.path.isdir(path):
+        print(f'--- {path} ---')
+        r = subprocess.run(['bd', 'list'], cwd=path, capture_output=True, text=True, timeout=10)
+        print(r.stdout[:500] or r.stderr[:200])
+" 2>&1
+
+echo "=== done ==="
