@@ -1,0 +1,11 @@
+status: new
+main-ref: e47df211
+created: 2026-03-28T07:32:15
+msg: rebuild — token auto-refresh (jsonwebtoken + ureq)
+
+#!/usr/bin/env bash
+set -euo pipefail
+cd /home/nick/projects/nursery/claude-deploy-skill
+git pull --ff-only origin main
+cargo install --path sentinel --quiet
+echo "done: $(claude-deploy-sentinel --version 2>/dev/null || echo installed)"
