@@ -1,0 +1,12 @@
+status: new
+main-ref: 43e256c2
+created: 2026-03-28T02:46:13
+msg: rebuild sentinel binary
+
+#!/usr/bin/env bash
+set -euo pipefail
+cd /mnt/archive-ssd/projects/nursery/claude-deploy-skill
+git pull --ff-only origin main
+cargo install --path sentinel --quiet
+echo "installed: $(which claude-deploy-sentinel 2>/dev/null || echo unknown)"
+echo done
