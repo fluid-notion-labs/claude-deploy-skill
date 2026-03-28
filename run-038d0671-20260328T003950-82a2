@@ -1,8 +1,9 @@
-status: claiming
+status: running
 main-ref: 038d067
 created: 2026-03-28T00:00:00
 msg: bd list open issues — active pipeline repos
 worker: nick-mamba-168673
+ran: 2026-03-28T00:40:13
 
 #!/usr/bin/env bash
 
