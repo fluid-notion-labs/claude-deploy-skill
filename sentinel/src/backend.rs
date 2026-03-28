@@ -144,7 +144,10 @@ impl GitShellBackend {
             ])?;
         }
 
-        let _ = self.git_wt(&["pull", "--ff-only", "origin", SENTINEL_BRANCH, "-q"]);
+        // fetch + hard reset — works regardless of detached HEAD or diverged local state
+        let _ = self.git_wt(&["fetch", "origin", SENTINEL_BRANCH, "-q"]);
+        let _ = self.git_wt(&["reset", "--hard",
+            &format!("origin/{}", SENTINEL_BRANCH), "-q"]);
         Ok(())
     }
 
