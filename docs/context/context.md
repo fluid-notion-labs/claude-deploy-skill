@@ -167,6 +167,22 @@ git diff HEAD~1 | npx --yes diff2html-cli -i stdin -o stdout --cs dark -s line \
 - When Done exceeds ~20 items, archive: append to `docs/context/archive.md`, clear Done
 - Update this file as part of every commit that changes behaviour
 
+## Issues (bd/Beads)
+
+Repos using [bd](https://github.com/nicholasgasior/beads) store exported issues at:
+
+- `docs/issues/context.md` — human/Claude-readable summary list (title + number, grouped by status)
+- `docs/issues/context.json` — full issue data
+
+Generate with:
+```sh
+bash scripts/bd-export-issues.sh
+# or with a filter:
+bash scripts/bd-export-issues.sh --filter --label bug
+```
+
+Script lives at `scripts/bd-export-issues.sh` in this repo. Copy it into any bd-enabled repo and run from the repo root. Handover blobs for those repos should include `docs/issues/context.md` inline alongside `docs/context/context.md`.
+
 ## Session start
 
 At the start of every session:
@@ -195,6 +211,8 @@ Next up:
 
 - `pull_worktree_clean()`: fetch+reset --hard instead of pull --ff-only — fixes "claim failed: read sentinel" loop when worktree is detached
 - `pull_worktree_clean()`: auto-commit dirty worktree before pull — fixes Cargo.lock / stray file errors
+- `scripts/bd-export-issues.sh`: export bd issues to `docs/issues/context.md` + `docs/issues/context.json`
+- docs: add local repo path, bd/issues convention to context.md
 - `watch --commands` now default; use `--no-commands` to disable sentinel execution
 - worktree `remove --force` before `add` — fixes "already used by worktree" error on restart
 - `pull_main` moved to top of sentinel loop (before claim) — sentinels always run against latest main
