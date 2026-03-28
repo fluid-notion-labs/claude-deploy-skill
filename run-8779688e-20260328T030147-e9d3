@@ -1,7 +1,8 @@
-status: new
+status: claiming
 main-ref: 8779688e
 created: 2026-03-28T03:01:47
 msg: probe bd output formats
+worker: nick-mamba-98775
 
 #!/usr/bin/env bash
 set -euo pipefail
