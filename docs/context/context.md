@@ -10,7 +10,7 @@
 
 ### Local path (nick's dev desktop)
 
-`/mnt/archive-ssd/projects/nursery/claude-deploy-skill`
+`/home/nick/projects/nursery/claude-deploy-skill`
 
 ## Commands
 
