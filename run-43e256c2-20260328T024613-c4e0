@@ -1,9 +1,10 @@
-status: running
+status: success
 main-ref: 43e256c2
 created: 2026-03-28T02:46:13
 msg: rebuild sentinel binary
 worker: nick-mamba-45064
 ran: 2026-03-28T02:57:54
+completed: 2026-03-28T02:58:04
 
 #!/usr/bin/env bash
 set -euo pipefail
@@ -12,3 +13,25 @@ git pull --ff-only origin main
 cargo install --path sentinel --quiet
 echo "installed: $(which claude-deploy-sentinel 2>/dev/null || echo unknown)"
 echo done
+
+# --- log ---
+# From github.com:fluid-notion-labs/claude-deploy-skill
+#  * branch            main       -> FETCH_HEAD
+#    43e256c..8779688  main       -> origin/main
+# Updating 43e256c..8779688
+# Fast-forward
+#  docs/context/context.md | 4 ++++
+#  1 file changed, 4 insertions(+)
+# warning: method `is_terminal` is never used
+#   --> src/sentinel.rs:37:12
+#    |
+# 24 | impl Status {
+#    | ----------- method in this implementation
+# ...
+# 37 |     pub fn is_terminal(&self) -> bool {
+#    |            ^^^^^^^^^^^
+#    |
+#    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+# 
+# installed: /home/nick/.cargo/bin/claude-deploy-sentinel
+# done
