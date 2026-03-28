@@ -1,0 +1,18 @@
+status: new
+main-ref: 038d067
+created: 2026-03-28T00:00:00
+msg: probe: bd list in FluidX3D-fork
+
+#!/usr/bin/env bash
+
+REPO="/mnt/b445f1a2-b2eb-441e-82ce-269798ad4a09/projects/fluidsim/fluidscape-pipeline/FluidX3D-fork"
+
+echo "=== bd list (open issues) ==="
+cd "$REPO"
+bd list 2>&1 | head -100
+
+echo ""
+echo "=== bd status ==="
+bd status 2>&1 | head -30
+
+echo "=== done ==="
