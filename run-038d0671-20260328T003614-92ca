@@ -1,9 +1,10 @@
-status: running
+status: success
 main-ref: 038d067
 created: 2026-03-28T00:00:00
 msg: probe: ls inside .beads dirs, then bd list
 worker: nick-mamba-168673
 ran: 2026-03-28T00:36:45
+completed: 2026-03-28T00:36:54
 
 #!/usr/bin/env bash
 
@@ -25,3 +26,28 @@ cd /home/nick
 bd where 2>&1 || true
 
 echo "=== done ==="
+
+# --- log ---
+# === ls ~/.beads ===
+# total 12
+# drwxr-x---  2 nick nick 4096 Mar 28 08:36 .
+# drwxr-x--- 40 nick nick 4096 Mar 28 08:16 ..
+# -rw-------  1 nick nick  413 Mar 16 05:36 registry.json
+# -rw-r--r--  1 nick nick    0 Jan 26 23:13 registry.lock
+# 
+# === ls ~/.beads-planning/.beads ===
+# total 8
+# drwxr-x--- 2 nick nick 4096 Feb 19 13:18 .
+# drwxr-x--- 4 nick nick 4096 Feb 15 21:39 ..
+# -rw-r--r-- 1 nick nick    0 Feb 19 13:18 issues.jsonl
+# 
+# === bd list from ~/.beads-planning ===
+# Warning: Daemon took too long to start (>5s). Running in direct mode.
+#   Hint: Run 'bd doctor' to diagnose daemon issues
+# 
+# === bd where (from home) ===
+# Error: no beads database found
+# Hint: run 'bd init' to create a database in the current directory
+#       or use 'bd --no-db' to work with JSONL only (no SQLite)
+#       or set BEADS_DIR to point to your .beads directory
+# === done ===
