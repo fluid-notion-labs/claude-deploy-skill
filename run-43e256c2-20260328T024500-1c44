@@ -1,0 +1,16 @@
+status: new
+main-ref: 43e256c
+created: 2026-03-28T00:00:00
+msg: bd list and help probe
+
+#!/usr/bin/env bash
+set -euo pipefail
+BD=/home/nick/.local/bin/bd
+REPO=/mnt/archive-ssd/projects/nursery/claude-deploy-skill
+echo "=== bd help ==="
+$BD --help 2>&1 || true
+echo "=== bd list (cwd: ~) ==="
+cd ~ && $BD list 2>&1 || true
+echo "=== bd list in claude-deploy-skill ==="
+cd "$REPO" && $BD list 2>&1 || true
+echo "=== done ==="
