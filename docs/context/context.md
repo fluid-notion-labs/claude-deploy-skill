@@ -211,7 +211,8 @@ Next up:
 
 - `pull_worktree_clean()`: fetch+reset --hard instead of pull --ff-only — fixes "claim failed: read sentinel" loop when worktree is detached
 - `pull_worktree_clean()`: auto-commit dirty worktree before pull — fixes Cargo.lock / stray file errors
-- `watch` loop: pull once at top, drain full queue, then sleep — was pulling main twice + once per claim
+- `watch` loop: pull once, drain full queue, then sleep — was pulling main twice + once per claim
+- `watch` loop: consume/produce queue — result pushes serialized on background thread, script execution no longer blocks on git push
 - docs: add local repo path, bd/issues convention to context.md
 - `watch --commands` now default; use `--no-commands` to disable sentinel execution
 - worktree `remove --force` before `add` — fixes "already used by worktree" error on restart

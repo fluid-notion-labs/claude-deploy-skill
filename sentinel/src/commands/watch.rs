@@ -58,7 +58,7 @@ fn spawn_push_thread(backend: Arc<dyn Backend>) -> mpsc::Sender<PushJob> {
 // ---------------------------------------------------------------------------
 
 pub async fn run(
-    backend: &dyn Backend,
+    _backend: &dyn Backend,
     repo_path: PathBuf,
     commands_mode: bool,
     interval: u64,
@@ -155,7 +155,7 @@ pub async fn run(
 // ---------------------------------------------------------------------------
 
 fn run_sentinel(
-    backend: &dyn Backend,
+    _backend: &dyn Backend,
     repo_path: &Path,
     main_branch: &str,
     s: &Sentinel,
@@ -298,7 +298,7 @@ fn mark_failed(repo_path: &Path, name: &str, error: &str, push_tx: &mpsc::Sender
 }
 
 fn reap_abandoned(
-    backend: &dyn Backend,
+    _backend: &dyn Backend,
     repo_path: &Path,
     push_tx: &mpsc::Sender<PushJob>,
     timeout_secs: i64,
