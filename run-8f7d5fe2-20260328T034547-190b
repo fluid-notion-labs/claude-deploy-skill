@@ -1,7 +1,8 @@
-status: new
+status: claiming
 main-ref: 8f7d5fe2
 created: 2026-03-28T03:45:47
 msg: rebuild — consume/produce queue
+worker: nick-mamba-98775
 
 #!/usr/bin/env bash
 set -euo pipefail
