@@ -1,8 +1,9 @@
-status: claiming
+status: running
 main-ref: e47df211
 created: 2026-03-28T07:32:15
 msg: rebuild — token auto-refresh (jsonwebtoken + ureq)
 worker: nick-mamba-119043
+ran: 2026-03-28T07:32:33
 
 #!/usr/bin/env bash
 set -euo pipefail
