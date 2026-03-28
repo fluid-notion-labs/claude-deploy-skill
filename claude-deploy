@@ -508,7 +508,7 @@ cmd_handover() {
     SKILL_REPO="fluid-notion-labs/claude-deploy-skill"
     SKILL_DIR=$(mktemp -d)
     echo "Fetching context..." >&2
-    git clone -q "https://x-access-token:$TOKEN@github.com/$SKILL_REPO.git" "$SKILL_DIR" 2>/dev/null
+    timeout 15 git clone -q --depth 1 "https://x-access-token:$TOKEN@github.com/$SKILL_REPO.git" "$SKILL_DIR" 2>/dev/null || true
     if [[ -f "$SKILL_DIR/docs/context/context.md" ]]; then
         CONTEXT=$(cat "$SKILL_DIR/docs/context/context.md")
     else
