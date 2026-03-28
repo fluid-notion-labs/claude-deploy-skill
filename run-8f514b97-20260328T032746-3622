@@ -1,7 +1,8 @@
-status: new
+status: claiming
 main-ref: 8f514b97
 created: 2026-03-28T03:27:46
 msg: rebuild sentinel binary — watch loop fix
+worker: nick-mamba-98775
 
 #!/usr/bin/env bash
 set -euo pipefail
