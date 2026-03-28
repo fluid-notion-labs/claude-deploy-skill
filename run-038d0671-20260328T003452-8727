@@ -1,9 +1,10 @@
-status: running
+status: failure
 main-ref: 038d067
 created: 2026-03-28T00:00:00
 msg: probe: find .beads dirs and list issues
 worker: nick-mamba-168673
 ran: 2026-03-28T00:35:13
+completed: 2026-03-28T00:35:17
 
 #!/usr/bin/env bash
 set -euo pipefail
@@ -23,3 +24,11 @@ find /home/nick -maxdepth 6 -type d -name ".beads" 2>/dev/null | grep -v ".git" 
 done
 
 echo "=== done ==="
+
+# --- log ---
+# === bd beads db probe ===
+# --- find .beads dirs ---
+# /home/nick/.beads
+# /home/nick/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rich_rust-0.2.1/.beads
+# /home/nick/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/asupersync-0.2.6/.beads
+# /home/nick/.beads-planning/.beads
