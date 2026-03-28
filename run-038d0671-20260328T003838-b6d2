@@ -1,0 +1,19 @@
+status: new
+main-ref: 038d067
+created: 2026-03-28T00:00:00
+msg: probe: mounts + find beads.db anywhere accessible
+
+#!/usr/bin/env bash
+
+echo "=== mounts ==="
+df -h | grep -v tmpfs | grep -v udev
+
+echo ""
+echo "=== find beads.db ==="
+find / -maxdepth 8 -name "beads.db" 2>/dev/null | grep -v ".cargo\|proc\|sys" | head -20
+
+echo ""
+echo "=== find .beads dirs (all) ==="
+find / -maxdepth 8 -type d -name ".beads" 2>/dev/null | grep -v ".cargo\|proc\|sys" | head -20
+
+echo "=== done ==="
