@@ -1,7 +1,8 @@
-status: new
+status: claiming
 main-ref: 43e256c
 created: 2026-03-28T00:00:00
 msg: rebuild sentinel binary after fetch+reset fix
+worker: nick-mamba-35659
 
 #!/usr/bin/env bash
 set -euo pipefail
