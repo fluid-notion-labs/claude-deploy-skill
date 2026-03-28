@@ -1,8 +1,9 @@
-status: claiming
+status: running
 main-ref: 8779688e
 created: 2026-03-28T02:59:24
 msg: bd init in claude-deploy-skill repo
 worker: nick-mamba-78262
+ran: 2026-03-28T03:26:44
 
 #!/usr/bin/env bash
 set -euo pipefail
